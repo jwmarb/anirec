@@ -1,9 +1,8 @@
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { APIResponse } from '$/types/api';
-import { connectToDatabase } from "./mongo";
+import { connectToDatabase } from "$/middleware/mongo";
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
 const authRouter = express.Router();
@@ -33,36 +32,39 @@ const registerSchema = z.object({
         path: ['confirmPassword']
     });
 
-
 authRouter.post('/login', async (_, res ) => {
+
     const result = loginSchema.safeParse(_.body);
     if(!result.success){
-        return res.status(StatusCodes.BAD_REQUEST).json({
+        res.status(StatusCodes.BAD_REQUEST).json({
             status: StatusCodes.BAD_REQUEST,
             data: result.error.errors.map(e => e.message)
         });
+        return;
     }
 
-    const { username, password } = result.data;
+    const { username, password, rememberMe } = result.data;
 
     try {
         const db = await connectToDatabase();
         const user = await db.collection('users').findOne({ username });
 
         if(!user || !user.password) {
-            return res.status(StatusCodes.UNAUTHORIZED).json({
+            res.status(StatusCodes.UNAUTHORIZED).json({
                 status: StatusCodes.UNAUTHORIZED,
                 error: 'Invalid username or password'
             });
+            return;
         }
 
         const validPassword = await bcrypt.compare(password, user.password);
 
         if(!validPassword){
-            return res.status(StatusCodes.UNAUTHORIZED).json({
+            res.status(StatusCodes.UNAUTHORIZED).json({
                 status: StatusCodes.UNAUTHORIZED,
                 error: 'invalid username or password'
             });
+            return;
         }
 
         let expires = "1h";
@@ -94,10 +96,11 @@ authRouter.post('/login', async (_, res ) => {
 authRouter.post('/register', async (_, res) => {
     const result = registerSchema.safeParse(_.body);
     if (!result.success) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
+      res.status(StatusCodes.BAD_REQUEST).json({
         status: StatusCodes.BAD_REQUEST,
         data: result.error.errors.map(e => e.message)
       });
+      return;
     }
     const { username, email, password} = result.data;
 
@@ -107,10 +110,11 @@ authRouter.post('/register', async (_, res) => {
         const userExists = await db.collection("users").findOne({ username });
 
         if(userExists){
-            return res.status(StatusCodes.CONFLICT).json({
+            res.status(StatusCodes.CONFLICT).json({
                 status: StatusCodes.CONFLICT,
                 error: 'username already registered!'
             });
+            return;
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
