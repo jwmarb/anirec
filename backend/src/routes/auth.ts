@@ -3,9 +3,12 @@ import { StatusCodes } from 'http-status-codes';
 import { APIResponse } from '$/types/api';
 import { connectToDatabase } from "./mongo";
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
 const authRouter = express.Router();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'secret-key';
 
 const passwordSchema = z
     .string()
@@ -36,7 +39,7 @@ authRouter.post('/login', async (_, res ) => {
     if(!result.success){
         return res.status(StatusCodes.BAD_REQUEST).json({
             status: StatusCodes.BAD_REQUEST,
-            error: 'invalid username or password'
+            data: result.error.errors.map(e => e.message)
         });
     }
 
@@ -62,10 +65,23 @@ authRouter.post('/login', async (_, res ) => {
             });
         }
 
+        let expires = "1h";
+
+        if(user.rememberMe){
+            expires = "744h"
+        }
+        
+        const token = jwt.sign(
+            {userId: user._id.toString(), username: user.username},
+            JWT_SECRET,
+            { expiresIn: expires}
+        );
+
         res.status(StatusCodes.OK).json({
             status: StatusCodes.OK,
-            data: 'login successful!'
+            data: token
         });
+
     } catch (err){
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             status: StatusCodes.INTERNAL_SERVER_ERROR,
@@ -80,7 +96,7 @@ authRouter.post('/register', async (_, res) => {
     if (!result.success) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: StatusCodes.BAD_REQUEST,
-        error: 'invalid username or password'
+        data: result.error.errors.map(e => e.message)
       });
     }
     const { username, email, password} = result.data;
