@@ -30,3 +30,10 @@
   left: 0;
   right: 0;
 }
+
+@media (max-width: 1024px) {
+  .header,
+  .header-with-back {
+    z-index: 2;
+  }
+}

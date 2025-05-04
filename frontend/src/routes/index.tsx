@@ -5,15 +5,15 @@ import './index.css';
 import ToggleTheme from '$/components/ToggleTheme';
 import Header from '$/components/Header';
 import AvatarMenu from '$/components/AvatarMenu';
+import { useNavigate } from 'react-router';
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      console.log('Searching for:', searchQuery);
-      // This is where you would make API calls in the future
-      setSearchQuery('');
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 

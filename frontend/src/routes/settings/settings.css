@@ -1,5 +1,6 @@
 .settings-content {
   display: flex;
+  margin-top: 1rem;
   padding: 24px;
   min-height: 100vh;
 }
