@@ -1,16 +1,31 @@
-import { MongoClient, Db } from "mongodb";
+import { MONGODB_URI } from '$/constants';
+import { NextFunction, Request, Response } from 'express';
+import { MongoClient, Db } from 'mongodb';
 
-const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/mydb";
-let cachedClient : MongoClient | null = null;
+let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
 
-export async function connectToDatabase(): Promise<Db> {
-    if(cachedDb) return cachedDb;
-    if(!cachedClient) {
-        cachedClient = new MongoClient(uri);
-        await cachedClient.connect();
-    }
+export async function getDatabase(): Promise<Db> {
+  if (cachedDb) return cachedDb;
+  if (!cachedClient) {
+    cachedClient = new MongoClient(MONGODB_URI);
+    cachedClient = await cachedClient.connect();
+    console.log('opened a db connection');
+  } else {
+    console.log('reusing existing db connection');
+  }
 
-    cachedDb = cachedClient.db();
-    return cachedDb;
+  cachedDb = cachedClient.db();
+  return cachedDb;
+}
+
+export async function database(request: Request, response: Response, next: NextFunction) {
+  getDatabase();
+  next();
+  if (cachedClient) {
+    await cachedClient.close();
+    cachedClient = null;
+    cachedDb = null;
+    console.log('closed db connection');
+  }
 }
