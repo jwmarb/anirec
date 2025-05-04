@@ -1,6 +1,6 @@
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { getDatabase } from '$/middleware/mongo';
+import { database, getDatabase } from '$/middleware/mongo';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
@@ -10,6 +10,8 @@ import { JWTPayload, User } from '$/types/schema';
 import { ObjectId } from 'mongodb';
 
 const authRouter = express.Router();
+
+authRouter.use(database);
 
 const passwordSchema = z
   .string()

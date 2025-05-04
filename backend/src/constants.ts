@@ -15,7 +15,7 @@ if (OPENAI_API_ENDPOINT == null) {
   throw new Error('OPENAI_API_ENDPOINT is not set in the environment variables.');
 }
 
-export const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/local';
+export const MONGODB_URI = process.env.MONGODB_URI ?? 'mongodb://root:example@localhost:27017/';
 export const ANILIST_API = 'https://graphql.anilist.co';
 export const JWT_SECRET =
   process.env.JWT_SECRET ||

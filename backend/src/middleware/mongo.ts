@@ -1,4 +1,4 @@
-import { MONGODB_URI } from '$/constants';
+import { Collections, MONGODB_URI } from '$/constants';
 import { NextFunction, Request, Response } from 'express';
 import { MongoClient, Db } from 'mongodb';
 
@@ -19,13 +19,19 @@ export async function getDatabase(): Promise<Db> {
   return cachedDb;
 }
 
-export async function database(request: Request, response: Response, next: NextFunction) {
-  getDatabase();
-  next();
+export async function disconnectDb() {
   if (cachedClient) {
     await cachedClient.close();
     cachedClient = null;
     cachedDb = null;
     console.log('closed db connection');
   }
+}
+
+export async function database(request: Request, response: Response, next: NextFunction) {
+  await getDatabase();
+  response.on('finish', () => {
+    disconnectDb();
+  });
+  next();
 }
