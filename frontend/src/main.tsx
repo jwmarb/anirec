@@ -1,18 +1,20 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
-import App from './App.tsx';
+import App from './routes';
 import { BrowserRouter, Route, Routes } from 'react-router';
-import { ConfigProvider } from 'antd';
+import Providers from '$/providers/index.tsx';
+import Settings from '$/routes/settings';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ConfigProvider>
+    <Providers>
       <BrowserRouter>
         <Routes>
           <Route path='/' element={<App />} />
+          <Route path='/settings' element={<Settings />} />
         </Routes>
       </BrowserRouter>
-    </ConfigProvider>
+    </Providers>
   </StrictMode>
 );

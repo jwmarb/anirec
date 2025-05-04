@@ -1,0 +1,32 @@
+.header-with-back {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.header-with-back-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header {
+  position: fixed;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  top: 0;
+  left: 0;
+  right: 0;
+}

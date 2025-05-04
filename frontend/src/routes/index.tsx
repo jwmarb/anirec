@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Input, Button, Typography, Layout, Space } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
-import './App.css';
-
-const { Content } = Layout;
-const { Title, Text } = Typography;
+import './index.css';
+import ToggleTheme from '$/components/ToggleTheme';
+import Header from '$/components/Header';
+import AvatarMenu from '$/components/AvatarMenu';
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,18 +25,24 @@ function App() {
 
   return (
     <Layout className='layout'>
-      <Content className='content'>
+      <Header>
+        <ToggleTheme />
+        <AvatarMenu />
+      </Header>
+      <main className='content'>
         <div className='search-container'>
           <Space direction='vertical' style={{ width: '100%' }}>
-            <Title level={1} className='search-title'>
+            <Typography.Title level={1} className='search-title'>
               Discover Your Next Anime & Manga Adventure
-            </Title>
-            <Text className='search-subtitle'>Find personalized recommendations based on your interests</Text>
+            </Typography.Title>
+            <Typography.Text className='search-subtitle'>
+              Find personalized recommendations based on your interests
+            </Typography.Text>
             <div className='search-input-container'>
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyPress}
                 placeholder="Describe what you're looking for, e.g., 'Action anime with strong female leads'"
                 size='large'
                 className='search-input'
@@ -53,7 +59,7 @@ function App() {
             </div>
           </Space>
         </div>
-      </Content>
+      </main>
     </Layout>
   );
 }
