@@ -15,13 +15,13 @@ const passwordSchema = z
 
 
 const loginSchema = z.object({
-    name: z.string(),
+    username: z.string(),
     password: z.string(),
     rememberMe: z.boolean()
 });
 
 const registerSchema = z.object({
-    name: z.string(),
+    username: z.string(),
     email: z.string().email(),
     password: passwordSchema,
     confirmPassword: z.string(),
@@ -30,41 +30,86 @@ const registerSchema = z.object({
         path: ['confirmPassword']
     });
 
+
+authRouter.post('/login', async (_, res ) => {
+    const result = loginSchema.safeParse(_.body);
+    if(!result.success){
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            status: StatusCodes.BAD_REQUEST,
+            error: 'invalid username or password'
+        });
+    }
+
+    const { username, password } = result.data;
+
+    try {
+        const db = await connectToDatabase();
+        const user = await db.collection('users').findOne({ username });
+
+        if(!user || !user.password) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({
+                status: StatusCodes.UNAUTHORIZED,
+                error: 'Invalid username or password'
+            });
+        }
+
+        const validPassword = await bcrypt.compare(password, user.password);
+
+        if(!validPassword){
+            return res.status(StatusCodes.UNAUTHORIZED).json({
+                status: StatusCodes.UNAUTHORIZED,
+                error: 'invalid username or password'
+            });
+        }
+
+        res.status(StatusCodes.OK).json({
+            status: StatusCodes.OK,
+            data: 'login successful!'
+        });
+    } catch (err){
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            status: StatusCodes.INTERNAL_SERVER_ERROR,
+            error: err instanceof Error ? err.message : "Unknown error"
+        })
+    }
+
+});
+
 authRouter.post('/register', async (_, res) => {
     const result = registerSchema.safeParse(_.body);
     if (!result.success) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         status: StatusCodes.BAD_REQUEST,
-        data: result.error
+        error: 'invalid username or password'
       });
     }
-    const { name, email, password} = result.data;
+    const { username, email, password} = result.data;
 
     try{
         const db = await connectToDatabase();
 
-        const userExists = await db.collection("users").findOne({ email });
+        const userExists = await db.collection("users").findOne({ username });
 
         if(userExists){
             return res.status(StatusCodes.CONFLICT).json({
                 status: StatusCodes.CONFLICT,
-                errors: ["Email already registered!"]
+                error: 'username already registered!'
             });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const user = { name, email, password: hashedPassword };
+        const user = { username, email, password: hashedPassword };
         const insert = await db.collection("users").insertOne(user);
 
         res.status(StatusCodes.CREATED).json({
             status: StatusCodes.CREATED,
-            data: { userId: insert.insertedId.toString(), name, email }
-          } as APIResponse<{userId: string, name: string, email: string}>);
+            data: 'User created successfully!'
+          });
     } catch (err) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             status: StatusCodes.INTERNAL_SERVER_ERROR,
-            errors: [err instanceof Error ? err.message : "Unknown error"]
+            error: err instanceof Error ? err.message : "Unknown error"
           });
     }
 
