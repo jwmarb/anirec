@@ -8,6 +8,7 @@ import { getDatabase } from '$/middleware/mongo';
 import { authenticateToken } from '$/middleware/auth';
 import { ObjectId } from 'mongodb';
 import { APIResponse } from '$/types/api';
+import { User } from '$/types/schema';
 
 const avatarRouter = express.Router();
 
@@ -58,7 +59,7 @@ avatarRouter.post('/', upload.single('avatar'), async (req: express.Request, res
     const db = await getDatabase();
     const userId = new ObjectId(req.user!._id);
 
-    const user = await db.collection(Collections.USERS).findOne({ _id: userId });
+    const user = await db.collection(Collections.USERS).findOne<User>({ _id: userId });
     const oldAvatarPath = user?.avatar;
 
     const avatarPath = path.join('uploads', req.file.filename);

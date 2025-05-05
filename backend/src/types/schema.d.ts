@@ -3,12 +3,19 @@ import { ObjectId } from 'mongodb';
 export type User = {
   _id: ObjectId;
   email: string;
+  avatar: string | null;
   username: string;
   password: string;
   about: string;
   interests: string[];
   favorites: ObjectId[];
+  contentSettings: ContentSettings
   avatar?: string; // path to the avatar image file
+};
+
+export type ContentSettings = {
+  "nsfwContent": "show" | "hide" | "blur";
+  "model": string | null;
 };
 
 export type JWTPayload = {

@@ -51,7 +51,7 @@ authRouter.post('/login', async (_, res) => {
 
   try {
     const db = await getDatabase();
-    const user = await db.collection(Collections.USERS).findOne({ username });
+    const user = await db.collection(Collections.USERS).findOne<User>({ username });
 
     if (!user || !user.password) {
       res.status(StatusCodes.UNAUTHORIZED).json({
@@ -103,7 +103,7 @@ authRouter.post('/register', async (_, res) => {
   try {
     const db = await getDatabase();
 
-    const userExists = await db.collection(Collections.USERS).findOne({ username });
+    const userExists = await db.collection(Collections.USERS).findOne<User>({ username });
 
     if (userExists) {
       res.status(StatusCodes.CONFLICT).json({
@@ -119,10 +119,12 @@ authRouter.post('/register', async (_, res) => {
       _id: new ObjectId(),
       username,
       email,
+      avatar: null,
       password: hashedPassword,
       about: '',
       interests: [],
-      favorites: []
+      favorites: [],
+      contentSettings: { "nsfwContent": "hide", "model": null}
     };
     const insert = await db.collection(Collections.USERS).insertOne(user);
 

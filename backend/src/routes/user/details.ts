@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken'
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import { JWT_SECRET } from '$/constants';
-import { JWTPayload } from '$/types/schema';
+import { JWTPayload, User } from '$/types/schema';
 import { ObjectId } from 'mongodb';
 
 const detailsRouter = express.Router();
@@ -56,7 +56,7 @@ detailsRouter.get('/', async (req, res) =>{
 
         try {
             const db = await getDatabase();
-            const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+            const user = await db.collection('users').findOne<User>({ _id: new ObjectId(userId) });
 
             if(!user){
                 res.status(StatusCodes.UNAUTHORIZED).json({
@@ -111,7 +111,7 @@ detailsRouter.put('/', async (req, res) =>{
 
         try {
             const db = await getDatabase();
-            const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+            const user = await db.collection('users').findOne<User>({ _id: new ObjectId(userId) });
 
             if(!user){
                 res.status(StatusCodes.UNAUTHORIZED).json({
