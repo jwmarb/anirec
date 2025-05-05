@@ -401,17 +401,20 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
     let filtered: SearchResult[] | null = null;
     let params: string | null = null;
 
-    const id = await extractUserId(req);
-
+    
     let model: string = 'google/gemini-2.5-flash';
-
-    if (id) {
-      const db = await getDatabase();
-      const user = await db.collection<User>(Collections.USERS).findOne({ _id: id });
-      if (user?.contentSettings.model) {
-        model = user.contentSettings.model;
+    
+    try{
+      const id = await extractUserId(req);
+      if (id) {
+        const db = await getDatabase();
+        const user = await db.collection<User>(Collections.USERS).findOne({ _id: id });
+        if (user?.contentSettings.model) {
+          model = user.contentSettings.model;
+        }
+      }} catch (e) {
+        console.log("Anonymous user detected")
       }
-    }
 
     if (searchQuery.trim().length > 0) {
       async function askAI(
