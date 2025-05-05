@@ -1,0 +1,67 @@
+{
+  "query": "can you recommend me a romantic comedy anime?",
+  "medias": [
+    {
+      "season": "SPRING",
+      "title": {
+        "english": "Kaguya-sama: Love is War",
+        "native": "かぐや様は告らせたい～天才たちの恋愛頭脳戦～",
+        "romaji": "Kaguya-sama wa Kokurasetai: Tensai-tachi no Renai Zunousen"
+      },
+      "popularity": 100000,
+      "averageScore": 84,
+      "genres": ["Comedy", "Romance", "Psychological"],
+      "format": "TV",
+      "description": "At the renowned Shuchiin Academy, Miyuki Shirogane and Kaguya Shinomiya are the student body's top representatives. Ranked the top student in the nation and respected by peers and mentors alike, Miyuki serves as the student council president. Alongside him, the vice president Kaguya—eldest daughter of the wealthy Shinomiya family—excels in every field imaginable. They are the envy of the entire student body, regarded as the perfect couple. However, despite both having already developed feelings for the other, neither are willing to admit them. The first to confess loses, will be looked down upon, and will be considered the lesser. With their honor and pride at stake, Miyuki and Kaguya are both equally determined to be the one to emerge victorious on the battlefield of love!",
+      "chapters": null,
+      "episodes": 12,
+      "coverImage": {
+        "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx101921-qSV6zMacSDm4.jpg",
+        "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101921-qSV6zMacSDm4.jpg"
+      },
+      "endDate": {
+        "day": 30,
+        "month": 3,
+        "year": 2019
+      },
+      "seasonYear": 2019,
+      "siteUrl": "https://anilist.co/anime/101921",
+      "status": "FINISHED",
+      "type": "ANIME",
+      "volumes": null,
+      "isAdult": false,
+      "id": 101921
+    },
+    {
+      "season": "FALL",
+      "title": {
+        "english": "Attack on Titan",
+        "native": "進撃の巨人",
+        "romaji": "Shingeki no Kyojin"
+      },
+      "popularity": 200000,
+      "averageScore": 85,
+      "genres": ["Action", "Drama", "Fantasy", "Mystery"],
+      "format": "TV",
+      "description": "Centuries ago, mankind was slaughtered to near extinction by monstrous humanoid creatures called Titans, forcing humans to hide in fear behind enormous concentric walls. What makes these giants truly terrifying is that their taste for human flesh is not born out of hunger but what appears to be out of pleasure. To ensure their survival, the remnants of humanity began living within defensive barriers, resulting in one hundred years without a single titan encounter. However, that fragile calm is soon shattered when a colossal Titan manages to breach the supposedly impregnable outer wall, reigniting the fight for survival against the man-eating abominations.",
+      "chapters": null,
+      "episodes": 25,
+      "coverImage": {
+        "large": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/bx16498-C6FPmWm59CyP.jpg",
+        "extraLarge": "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx16498-C6FPmWm59CyP.jpg"
+      },
+      "endDate": {
+        "day": 28,
+        "month": 9,
+        "year": 2013
+      },
+      "seasonYear": 2013,
+      "siteUrl": "https://anilist.co/anime/16498",
+      "status": "FINISHED",
+      "type": "ANIME",
+      "volumes": null,
+      "isAdult": false,
+      "id": 16498
+    }
+  ]
+} 
