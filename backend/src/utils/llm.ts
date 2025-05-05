@@ -3,10 +3,11 @@ import { TokenJS } from 'token.js';
 
 const tokenjs = new TokenJS({ baseURL: OPENAI_API_ENDPOINT, apiKey: OPENAI_API_KEY });
 
-export async function chat(prompt: string, query: string): Promise<string> {
+export async function chat(prompt: string, query: string, model: string): Promise<string> {
+  console.log(`Making request to ${model}`);
   const completion = await tokenjs.chat.completions.create({
     provider: 'openai-compatible',
-    model: 'google/gemini-2.5-flash',
+    model,
     messages: [
       { role: 'developer', content: prompt },
       { role: 'user', content: query },

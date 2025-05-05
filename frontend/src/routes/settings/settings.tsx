@@ -22,6 +22,7 @@ import { useMessage } from '$/providers/message/context';
 import { BACKEND_URL } from '$/constants';
 import { useAuthStore } from '$/providers/auth/store';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { withProtectedRoute } from '$/providers/auth/hoc';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -40,11 +41,13 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
-interface UserFormData {
+interface UpdateUserDataPayload {
+  interests: string;
+  about: string;
   email: string;
 }
 
-const Settings = () => {
+const Settings = withProtectedRoute(() => {
   const [user] = useUser();
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
@@ -107,13 +110,13 @@ const Settings = () => {
   });
 
   // Mutation for user settings
-  const { mutateAsync: updateUserSettings } = useMutation<any, Error, UserFormData>({
+  const { mutateAsync: updateUserSettings } = useMutation<any, Error, UpdateUserDataPayload>({
     mutationKey: ['user-settings', token],
     mutationFn: async (userData) => {
       const response = await fetch(`${BACKEND_URL}/api/user`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ email: userData.email }),
+        body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
@@ -486,6 +489,6 @@ const Settings = () => {
       </main>
     </Layout>
   );
-};
+});
 
 export default Settings;

@@ -1,5 +1,5 @@
 import useUser from '$/hooks/useUser';
-import { BookOutlined, LoginOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
+import { HeartOutlined, LoginOutlined, LogoutOutlined, SettingOutlined } from '@ant-design/icons';
 import { Button, Dropdown, MenuProps } from 'antd';
 import { useNavigate } from 'react-router';
 import { useState } from 'react';
@@ -33,37 +33,39 @@ export default function AvatarMenu() {
     setIsAuthModalVisible(true);
   };
 
-  const items: MenuProps['items'] = [
-    {
-      key: '1',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      onClick: handleSettings,
-    },
-    {
-      key: '2',
-      icon: <BookOutlined />,
-      label: 'Saved Anime & Manga',
-      onClick: handleSaved,
-    },
-    {
-      type: 'divider',
-    },
-    user
-      ? {
+  const items: MenuProps['items'] = user
+    ? [
+        {
+          key: '1',
+          icon: <SettingOutlined />,
+          label: 'Settings',
+          onClick: handleSettings,
+        },
+        {
+          key: '2',
+          icon: <HeartOutlined />,
+          label: 'Favorites',
+          onClick: handleSaved,
+        },
+        {
+          type: 'divider',
+        },
+        {
           key: '3',
           icon: <LogoutOutlined />,
           label: 'Logout',
           danger: true,
           onClick: handleLogout,
-        }
-      : {
+        },
+      ]
+    : [
+        {
           key: '3',
           icon: <LoginOutlined />,
           label: 'Sign in',
           onClick: handleLoginClick,
         },
-  ];
+      ];
   return (
     <>
       <Dropdown trigger={['click']} placement='bottomRight' arrow menu={{ items }}>

@@ -11,3 +11,15 @@
   margin: 0 auto;
   padding: 2rem;
 }
+
+/* Add this to your existing CSS file */
+.interests-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.site-tag-plus {
+  border-style: dashed;
+}

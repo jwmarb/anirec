@@ -42,12 +42,12 @@ async function getMediaDetails(mediaId: number) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify({
       query,
-      variables: { mediaId }
-    })
+      variables: { mediaId },
+    }),
   });
 
   const data = await response.json();
@@ -59,12 +59,12 @@ async function getMediaDetails(mediaId: number) {
 
 recommendRouter.get('/:id', async (req, res) => {
   console.log('Received request params:', req.params);
-  
+
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
     res.status(StatusCodes.UNAUTHORIZED).json({
       status: StatusCodes.UNAUTHORIZED,
-      error: 'unauthorized user'
+      error: 'unauthorized user',
     } as APIResponse);
     return;
   }
@@ -74,7 +74,7 @@ recommendRouter.get('/:id', async (req, res) => {
     console.log('Validation failed:', result.error.errors);
     res.status(StatusCodes.BAD_REQUEST).json({
       status: StatusCodes.BAD_REQUEST,
-      error: result.error.errors.map(e => e.message).join(', '),
+      error: result.error.errors.map((e) => e.message).join(', '),
     } as APIResponse);
     return;
   }
@@ -88,7 +88,7 @@ recommendRouter.get('/:id', async (req, res) => {
     if (!user) {
       res.status(StatusCodes.UNAUTHORIZED).json({
         status: StatusCodes.UNAUTHORIZED,
-        error: 'user not found'
+        error: 'user not found',
       } as APIResponse);
       return;
     }
@@ -140,17 +140,17 @@ recommendRouter.get('/:id', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
       body: JSON.stringify({
         query,
-        variables: { mediaId }
-      })
+        variables: { mediaId },
+      }),
     });
 
     const data = await response.json();
     console.log('AniList API response:', data);
-    
+
     if (data.errors) {
       console.error('AniList API errors:', data.errors);
       res.status(StatusCodes.BAD_REQUEST).json({
@@ -182,16 +182,18 @@ recommendRouter.get('/:id', async (req, res) => {
     );
 
     const validFavorites = favoriteDetails.filter((fav): fav is NonNullable<typeof fav> => fav !== null);
-    const favoritesContext = JSON.stringify(validFavorites.map(fav => ({
-      title: fav.title,
-      description: fav.description,
-      genres: fav.genres,
-      format: fav.format,
-      episodes: fav.episodes,
-      chapters: fav.chapters,
-      status: fav.status,
-      averageScore: fav.averageScore
-    })));
+    const favoritesContext = JSON.stringify(
+      validFavorites.map((fav) => ({
+        title: fav.title,
+        description: fav.description,
+        genres: fav.genres,
+        format: fav.format,
+        episodes: fav.episodes,
+        chapters: fav.chapters,
+        status: fav.status,
+        averageScore: fav.averageScore,
+      }))
+    );
 
     // Create the system prompt with favorites context
     const systemPrompt = `You are an anime/manga recommendation system. Based on a user's favorites list, determine if they would enjoy a given recommendation.
@@ -225,27 +227,27 @@ Response format:
           episodes: media.episodes,
           chapters: media.chapters,
           status: media.status,
-          averageScore: media.averageScore
+          averageScore: media.averageScore,
         });
 
         try {
-          const llmResponse = await chat(systemPrompt, mediaContext);
+          const llmResponse = await chat(systemPrompt, mediaContext, user.contentSettings.model ?? 'openai/gpt-4.1');
           const recommendation = JSON.parse(llmResponse);
           return {
             media: {
               ...media,
               rating: node.rating,
-              userRating: node.userRating
+              userRating: node.userRating,
             },
             would_recommend: recommendation.would_recommend,
-            reason: recommendation.reason
+            reason: recommendation.reason,
           };
         } catch (err) {
           console.error('Error processing recommendation:', err);
           return {
             media,
             would_recommend: false,
-            reason: "Error processing recommendation"
+            reason: 'Error processing recommendation',
           };
         }
       })
@@ -253,12 +255,12 @@ Response format:
 
     // Format the response according to the specified structure
     const formattedResponse = {
-      data: recommendations.map(rec => ({
+      data: recommendations.map((rec) => ({
         id: rec.media.id,
         would_recommend: rec.would_recommend,
-        reason: rec.reason
+        reason: rec.reason,
       })),
-      status: StatusCodes.OK
+      status: StatusCodes.OK,
     };
 
     res.status(StatusCodes.OK).json(formattedResponse);

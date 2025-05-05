@@ -3,8 +3,11 @@ import express from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 import { chat } from '$/utils/llm';
-import { ANILIST_API } from '$/constants';
+import { ANILIST_API, Collections } from '$/constants';
 import { findClosestOf } from '$/utils/strings';
+import { extractUserId } from '$/utils/auth';
+import { getDatabase } from '$/middleware/mongo';
+import { User } from '$/types/schema';
 
 const searchRouter = express.Router();
 
@@ -398,6 +401,18 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
     let filtered: SearchResult[] | null = null;
     let params: string | null = null;
 
+    const id = await extractUserId(req);
+
+    let model: string = 'google/gemini-2.5-flash';
+
+    if (id) {
+      const db = await getDatabase();
+      const user = await db.collection<User>(Collections.USERS).findOne({ _id: id });
+      if (user?.contentSettings.model) {
+        model = user.contentSettings.model;
+      }
+    }
+
     if (searchQuery.trim().length > 0) {
       async function askAI(
         prompt: string,
@@ -405,7 +420,7 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
         type: string,
         postProcess: (q: string) => string | null = (q) => q
       ): Promise<SearchResult | null> {
-        const response = await chat(prompt, searchQuery);
+        const response = await chat(prompt, searchQuery, model);
         if (!response) return null;
 
         let parsed: string | null = null;
@@ -555,7 +570,26 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
           'Int'
         ),
         askAI(
-          `Answer with a title fragment (or the full title) extracted from the query if it is asking for a specific media title. For example, if the query asks, "Can you give me anime similar to Sword Art Online?", this is not asking for a specific media title but for a media related to the media that is titled "Sword Art Online". However, if the query asks, "What is the title of the anime/manga that begins with "One"?", then the extracted title should be "One". If the query is a sentence that is a statement, assume that this is a title. For example, if the query is "That time i got reincarnated as a slime", then the extracted title should be "That time i got reincarnated as a slime". If the query is "banana", then the extracted title is "banana". A query that is a sentence fragment can be considered as a title *if and only if* the sentence fragment is oddly specific. A query that asks about keywords in a title can be considered as a title. For example, if the query is "anime with the word "sword" in the title", then the extracted title should be "sword". Please note that determining the title in a query can be challenging, so if you do not know, please simply answer "null". Also, please do not make any presumptions on what the query is searching for (e.g. "super good anime adaptation from a visual novel and is science fiction and has time travel" should NOT be assumed to be an actual anime title and should be "null" since this is not specific).`,
+          `Extract a specific media title (or fragment) from the query if present. Follow these rules:
+
+					EXTRACT THE TITLE WHEN:
+					- The query is an exact media title (e.g., "That time I got reincarnated as a slime" → "That time I got reincarnated as a slime")
+					- The query clearly asks about a specific title (e.g., "Tell me about Sword Art Online" → "Sword Art Online")
+					- The query contains a search for a partial title (e.g., "anime with 'sword' in the title" → "sword")
+					- The query asks for a title with specific identifying characteristics (e.g., "What's the title of the anime that begins with 'One'?" → "One")
+				
+					DO NOT EXTRACT AND RETURN "null" WHEN:
+					- The query contains subjective descriptors like "best", "peak", "good", "top" (e.g., "peak light novel" → "null")
+					- The query asks for recommendations similar to a title (e.g., "Anime similar to Sword Art Online" → "null")
+					- The query describes general media types, genres, or concepts (e.g., "light novel", "romance anime" → "null")
+					- The query uses a title only as a reference point (e.g., "Is there anything better than One Piece?" → "null")
+					- The query contains general qualifiers or adjectives with media formats (e.g., "popular anime", "trending manga" → "null")
+					- The query is ambiguous or could be interpreted as either a title search or a descriptive search
+					- You're uncertain whether the query contains a specific title
+				
+					A single word or short phrase should only be considered a title if it's distinctive and unlikely to be a general descriptor (e.g., "Naruto" is a title, but "romance" is not).
+				
+					Always prioritize precision over recall. If in doubt, return "null".`,
           'search',
           'String'
         ),
@@ -636,13 +670,13 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       delete body.variables?.seasonYear;
     }
 
+    console.log(body.variables);
+
     const response = await fetch(ANILIST_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-
-    console.log(body.variables);
 
     const aniListData = await response.json();
 

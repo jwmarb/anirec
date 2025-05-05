@@ -30,8 +30,5 @@ export async function disconnectDb() {
 
 export async function database(request: Request, response: Response, next: NextFunction) {
   await getDatabase();
-  response.on('finish', () => {
-    disconnectDb();
-  });
   next();
 }
