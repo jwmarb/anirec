@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { Layout, Typography, Tabs, Form, Input, Button, Select, Upload, Space, Divider, Flex, Radio } from 'antd';
 import {
@@ -16,7 +17,7 @@ import './settings.css';
 import Header from '$/components/Header';
 import AvatarMenu from '$/components/AvatarMenu';
 import UserAvatar from '$/components/UserAvatar';
-import useUser, { NsfwContentSetting } from '$/hooks/useUser';
+import useUser, { ContentSettings, NsfwContentSetting } from '$/hooks/useUser';
 import { useMessage } from '$/providers/message/context';
 import { BACKEND_URL } from '$/constants';
 import { useAuthStore } from '$/providers/auth/store';
@@ -30,7 +31,7 @@ interface SettingsState {
   email: string;
   // Content Settings
   nsfwContentSetting: NsfwContentSetting;
-  llmModel: string;
+  llmModel: string | null;
 }
 
 interface PasswordFormData {
@@ -39,16 +40,24 @@ interface PasswordFormData {
   confirmPassword: string;
 }
 
+interface UserFormData {
+  email: string;
+}
+
 const Settings = () => {
   const [user] = useUser();
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
   const message = useMessage();
+  const notification = useNotification();
+
   const [userForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
   const [contentForm] = Form.useForm();
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('user');
+
+  // Query for model options
   const { data: llmOptions } = useQuery({
     queryKey: ['models'],
     queryFn: async () => {
@@ -61,22 +70,121 @@ const Settings = () => {
           id: string;
         }[];
       };
-      return r.data.map((x) => ({ value: x.id, label: x.id }));
+      const k: {
+        value: string | null;
+        label: string;
+      }[] = r.data.map((x) => ({ value: x.id, label: x.id }));
+      k.unshift({ label: '(Default)', value: null });
+      return k;
     },
   });
-  // const { } = useMutation({
-  // 	mutationKey: ['']
-  // })
-  const notification = useNotification();
+
+  // Mutation for content settings
+  const { mutateAsync: updateContentSettings } = useMutation<ContentSettings, Error, ContentSettings>({
+    mutationKey: ['content', token],
+    mutationFn: async (content) => {
+      const response = await fetch(`${BACKEND_URL}/api/user/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(content),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Could not change content settings.');
+      }
+
+      const data = await response.json();
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', token] });
+      message.success('Content settings saved successfully');
+    },
+    onError: (error) => {
+      message.error(error.message);
+    },
+  });
+
+  // Mutation for user settings
+  const { mutateAsync: updateUserSettings } = useMutation<any, Error, UserFormData>({
+    mutationKey: ['user-settings', token],
+    mutationFn: async (userData) => {
+      const response = await fetch(`${BACKEND_URL}/api/user`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: userData.email }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Could not update user settings.');
+      }
+
+      const data = await response.json();
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', token] });
+      message.success('User settings saved successfully');
+    },
+    onError: (error) => {
+      message.error(error.message);
+    },
+  });
+
+  // Mutation for password update
+  const { mutateAsync: updatePassword } = useMutation<any, Error, PasswordFormData>({
+    mutationKey: ['password', token],
+    mutationFn: async (passwordData) => {
+      const response = await fetch(`${BACKEND_URL}/api/user`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          oldPassword: passwordData.currentPassword,
+          password: passwordData.newPassword,
+          confirmPassword: passwordData.confirmPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Invalid password');
+      }
+
+      return await response.json();
+    },
+    onSuccess: () => {
+      passwordForm.resetFields();
+      message.success('Password updated successfully');
+    },
+    onError: (error) => {
+      passwordForm.setFields([
+        {
+          name: 'currentPassword',
+          errors: [error.message],
+        },
+      ]);
+    },
+  });
 
   // Initial settings values
   const initialSettings: SettingsState = {
     email: user?.email ?? '',
     nsfwContentSetting: user?.contentSettings.nsfwContent ?? 'hide',
-    llmModel: user?.contentSettings.model ?? 'gpt-4.1',
+    llmModel: user?.contentSettings.model ?? '',
   };
 
   const [settings, setSettings] = useState<SettingsState>(initialSettings);
+
+  useEffect(() => {
+    if (user != null && llmOptions?.length) {
+      setSettings({
+        email: user.email,
+        llmModel: user.contentSettings?.model,
+        nsfwContentSetting: user.contentSettings.nsfwContent,
+      });
+    }
+  }, [user, llmOptions]);
 
   // Initialize forms with current settings
   useEffect(() => {
@@ -94,7 +202,6 @@ const Settings = () => {
   const handleUserFormChange = () => {
     const currentValues = userForm.getFieldsValue();
     const hasUserChanges = currentValues.email !== settings.email;
-
     setHasChanges(hasUserChanges);
   };
 
@@ -108,26 +215,31 @@ const Settings = () => {
   };
 
   // Handle save changes
-  const handleSaveChanges = () => {
-    if (activeTab === 'user') {
-      const values = userForm.getFieldsValue();
-      // api implementation
-      setSettings((prev) => ({
-        ...prev,
-        email: values.email,
-        avatar: values.avatar,
-      }));
-    } else {
-      const values = contentForm.getFieldsValue();
-      setSettings((prev) => ({
-        ...prev,
-        nsfwContentSetting: values.nsfwContentSetting,
-        llmModel: values.llmModel,
-      }));
+  const handleSaveChanges = async () => {
+    try {
+      if (activeTab === 'user') {
+        const values = userForm.getFieldsValue();
+        await updateUserSettings(values);
+        setSettings((prev) => ({
+          ...prev,
+          email: values.email,
+        }));
+      } else {
+        const values = contentForm.getFieldsValue();
+        const updatedSettings = await updateContentSettings({
+          model: values.llmModel,
+          nsfwContent: values.nsfwContentSetting,
+        });
+        setSettings((prev) => ({
+          ...prev,
+          nsfwContentSetting: updatedSettings.nsfwContent,
+          llmModel: updatedSettings.model ?? prev.llmModel,
+        }));
+      }
+      setHasChanges(false);
+    } catch (error) {
+      console.error('Error saving settings:', error);
     }
-
-    setHasChanges(false);
-    message.success('Settings saved successfully');
   };
 
   // Handle discard changes
@@ -149,43 +261,19 @@ const Settings = () => {
 
   // Handle password update
   const handleUpdatePassword = async () => {
-    passwordForm
-      .validateFields()
-      .then(async (values: PasswordFormData) => {
-        // Validate that new password and confirm password match
-        if (values.newPassword !== values.confirmPassword) {
-          message.error('New password and confirm password do not match');
-          return;
-        }
+    try {
+      const values = await passwordForm.validateFields();
 
-        const r = await fetch(`${BACKEND_URL}/api/user`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            oldPassword: values.currentPassword,
-            password: values.newPassword,
-            confirmPassword: values.confirmPassword,
-          }),
-        });
+      // Validate that new password and confirm password match
+      if (values.newPassword !== values.confirmPassword) {
+        message.error('New password and confirm password do not match');
+        return;
+      }
 
-        if (r.status !== 200) {
-          message.error('Invalid password');
-          passwordForm.setFields([
-            {
-              name: 'currentPassword',
-              errors: ['Invalid password'],
-            },
-          ]);
-          return;
-        }
-
-        // Reset form after successful update
-        passwordForm.resetFields();
-        message.success('Password updated successfully');
-      })
-      .catch((info) => {
-        console.log('Validate Failed:', info);
-      });
+      await updatePassword(values);
+    } catch (error) {
+      console.log('Validate Failed:', error);
+    }
   };
 
   // Show notification when changes are detected
@@ -227,6 +315,21 @@ const Settings = () => {
     };
   }, [hasChanges]);
 
+  const handleTabChange = (key: string) => {
+    if (hasChanges) {
+      // Prompt user to save changes before switching tabs
+      const confirmed = window.confirm('You have unsaved changes. Save them before switching tabs?');
+      if (confirmed) {
+        handleSaveChanges().then(() => setActiveTab(key));
+      } else {
+        handleDiscardChanges();
+        setActiveTab(key);
+      }
+    } else {
+      setActiveTab(key);
+    }
+  };
+
   return (
     <Layout className='layout'>
       <Header backButton>
@@ -237,20 +340,7 @@ const Settings = () => {
         <div className='settings-container'>
           <Title level={2}>Settings</Title>
           <Text type='secondary'>Customize your experience</Text>
-          <Tabs
-            defaultActiveKey='user'
-            onChange={(key) => {
-              if (hasChanges) {
-                // Prompt user to save changes before switching tabs
-                const confirmed = window.confirm('You have unsaved changes. Save them before switching tabs?');
-                if (confirmed) {
-                  handleSaveChanges();
-                } else {
-                  handleDiscardChanges();
-                }
-              }
-              setActiveTab(key);
-            }}>
+          <Tabs defaultActiveKey='user' activeKey={activeTab} onChange={handleTabChange}>
             <TabPane tab='User Settings' key='user'>
               <Form form={userForm} layout='vertical' onValuesChange={handleUserFormChange}>
                 <Form.Item label='Profile Picture' name='avatar'>
@@ -366,18 +456,18 @@ const Settings = () => {
 
                   <Divider />
 
-                  <Form.Item label='AI Recommendation Engine' name='llmModel'>
-                    <Space direction='vertical' style={{ width: '100%' }}>
-                      <Text type='secondary'>
-                        Select which AI model to use for recommendations. Each model has different strengths.
-                      </Text>
-                      <Select
-                        style={{ width: '100%' }}
-                        options={llmOptions}
-                        placeholder='Select AI model'
-                        prefix={<RobotOutlined />}
-                      />
-                    </Space>
+                  <Form.Item
+                    label='AI Recommendation Engine'
+                    name='llmModel'
+                    help='Select which AI model to use for content recommendations and responses'>
+                    <Select
+                      style={{ width: '100%' }}
+                      options={llmOptions}
+                      placeholder='Select AI model'
+                      loading={!llmOptions}
+                      disabled={!llmOptions || llmOptions.length === 0}
+                      prefix={<RobotOutlined />}
+                    />
                   </Form.Item>
                 </Flex>
               </Form>

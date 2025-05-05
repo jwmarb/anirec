@@ -9,7 +9,9 @@ import { findClosestOf } from '$/utils/strings';
 const searchRouter = express.Router();
 
 type SearchResult = {
-  [key: string]: string | number | boolean | null;
+  key: string;
+  type: string;
+  value: string | number | boolean | null;
 };
 
 const searchPayloadSchema = z.object({
@@ -386,7 +388,7 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
   if (!result.success) {
     res.status(StatusCodes.BAD_REQUEST).json({
       status: StatusCodes.BAD_REQUEST,
-      error: result.error.errors.map(e => e.message).join(', '),
+      error: result.error.errors.map((e) => e.message).join(', '),
     } as APIResponse);
     return;
   }
@@ -405,18 +407,28 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       ): Promise<SearchResult | null> {
         const response = await chat(prompt, searchQuery);
         if (!response) return null;
-        
-        let parsed;
+
+        let parsed: string | null = null;
         try {
           parsed = postProcess(response);
         } catch {
           return null;
         }
-        if (parsed === null) return null;
+        if (parsed == null) return null;
 
-        return {
-          [argName]: parsed,
-        };
+        try {
+          return {
+            key: argName,
+            type,
+            value: JSON.parse(parsed),
+          };
+        } catch {
+          return {
+            key: argName,
+            type,
+            value: parsed,
+          };
+        }
       }
 
       const today = new Date().toLocaleString().split(',')[0].split('/');
@@ -462,7 +474,10 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
           'format',
           'MediaFormat',
           (q) =>
-            findClosestOf(['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'], q)
+            findClosestOf(
+              ['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'],
+              q
+            )
         ),
         askAI(
           `Answer "FINISHED" or "RELEASING" or "NOT_YET_RELEASED" or "CANCELLED" or "HIATUS" regarding whether the query is asking for a specific media status or not. Do not infer the media status from other information (e.g. time). If the query does not specify a media status, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
@@ -546,14 +561,14 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
         ),
       ]);
 
-      filtered = a.filter((x): x is SearchResult => x !== null && x.query !== null);
-      params = filtered.map((x) => `$${x.argument}: ${x.type}`).join(', ');
+      filtered = a.filter((x): x is SearchResult => x != null && x.value != null);
+      params = filtered.map((x) => `$${x.key}: ${x.type}`).join(', ');
     }
 
     const query = `
 	query($page: Int, $perPage: Int${params ? `, ${params}` : ''}) {
 		Page(page: $page, perPage: $perPage) {
-			media${params && filtered ? `(${filtered.map((x) => `${x.argument}: $${x.argument}`).join(', ')})` : ''} {
+			media${params && filtered ? `(${filtered.map((x) => `${x.key}: $${x.key}`).join(', ')})` : ''} {
 				season
 				title {
 					english
@@ -593,22 +608,21 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       variables:
         filtered?.reduce<Record<string, unknown>>(
           (prev, curr) => {
-            const argument = curr.argument as string;
-            if (argument.includes('_in') && typeof curr.query === 'string') {
-              prev[argument] = curr.query.split(',').map((item) => item.trim());
+            if (curr.key.includes('_in') && typeof curr.value === 'string') {
+              prev[curr.key] = curr.value.split(',').map((item) => item.trim());
               return prev;
             }
 
-            if (curr.type === 'FuzzyDateInt' && prev['season'] != null && typeof curr.query === 'number') {
-              if (argument === 'startDate_greater') {
-                prev[argument] = curr.query % 1000 < 401 ? curr.query - 10000 : curr.query - 300;
+            if (curr.type === 'FuzzyDateInt' && prev['season'] != null && typeof curr.value === 'number') {
+              if (curr.key === 'startDate_greater') {
+                prev[curr.key] = curr.value % 1000 < 401 ? curr.value - 10000 : curr.value - 300;
               } else {
-                prev[argument] = curr.query % 1000 < 932 ? curr.query + 300 : curr.query + 10000;
+                prev[curr.key] = curr.value % 1000 < 932 ? curr.value + 300 : curr.value + 10000;
               }
               return prev;
             }
 
-            prev[argument] = curr.query;
+            prev[curr.key] = curr.value;
             return prev;
           },
           {
@@ -622,13 +636,13 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       delete body.variables?.seasonYear;
     }
 
-    console.log(filtered, body);
-
     const response = await fetch(ANILIST_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+
+    console.log(body.variables);
 
     const aniListData = await response.json();
 
