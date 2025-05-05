@@ -1,13 +1,21 @@
-import { APIResponse, Media } from '$/types/api';
-import express from 'express';
-import { StatusCodes } from 'http-status-codes';
-import { z } from 'zod';
-import { ANILIST_API, Collections, JWT_SECRET } from '$/constants';
-import { JWTPayload, User } from '$/types/schema';
-import { getDatabase } from '$/middleware/mongo';
-import { ObjectId } from 'mongodb';
-import { chat } from '$/utils/llm';
-import jwt from 'jsonwebtoken';
+import { APIResponse, Media } from "$/types/api";
+import express from "express";
+import { StatusCodes } from "http-status-codes";
+import { z } from "zod";
+import {
+  ANILIST_API,
+  Collections,
+  DEFAULT_MODEL,
+  JWT_SECRET,
+  OPENAI_API_ENDPOINT,
+  OPENAI_API_KEY,
+} from "$/constants";
+import { JWTPayload, User } from "$/types/schema";
+import { getDatabase } from "$/middleware/mongo";
+import { ObjectId } from "mongodb";
+import { chat, tokenjs } from "$/utils/llm";
+import jwt from "jsonwebtoken";
+import promiseRetry from "promise-retry";
 
 const recommendRouter = express.Router();
 
@@ -39,10 +47,10 @@ async function getMediaDetails(mediaId: number) {
   `;
 
   const response = await fetch(ANILIST_API, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
+      Accept: "application/json",
     },
     body: JSON.stringify({
       query,
@@ -52,29 +60,29 @@ async function getMediaDetails(mediaId: number) {
 
   const data = await response.json();
   if (data.errors) {
-    throw new Error(data.errors.map((e: any) => e.message).join(', '));
+    throw new Error(data.errors.map((e: any) => e.message).join(", "));
   }
   return data.data.Media;
 }
 
-recommendRouter.get('/:id', async (req, res) => {
-  console.log('Received request params:', req.params);
+recommendRouter.get("/:id", async (req, res) => {
+  console.log("Received request params:", req.params);
 
-  const token = req.headers.authorization?.split(' ')[1];
+  const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
     res.status(StatusCodes.UNAUTHORIZED).json({
       status: StatusCodes.UNAUTHORIZED,
-      error: 'unauthorized user',
+      error: "unauthorized user",
     } as APIResponse);
     return;
   }
 
   const result = recommendParamsSchema.safeParse(req.params);
   if (!result.success) {
-    console.log('Validation failed:', result.error.errors);
+    console.log("Validation failed:", result.error.errors);
     res.status(StatusCodes.BAD_REQUEST).json({
       status: StatusCodes.BAD_REQUEST,
-      error: result.error.errors.map((e) => e.message).join(', '),
+      error: result.error.errors.map((e) => e.message).join(", "),
     } as APIResponse);
     return;
   }
@@ -83,21 +91,23 @@ recommendRouter.get('/:id', async (req, res) => {
     // Get user info and favorites
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
     const db = await getDatabase();
-    const user = await db.collection(Collections.USERS).findOne<User>({ _id: new ObjectId(decoded._id) });
+    const user = await db
+      .collection(Collections.USERS)
+      .findOne<User>({ _id: new ObjectId(decoded._id) });
 
     if (!user) {
       res.status(StatusCodes.UNAUTHORIZED).json({
         status: StatusCodes.UNAUTHORIZED,
-        error: 'user not found',
+        error: "user not found",
       } as APIResponse);
       return;
     }
 
     const { id: mediaId } = result.data;
-    console.log('Fetching recommendations for mediaId:', mediaId);
+    console.log("Fetching recommendations for mediaId:", mediaId);
 
     const query = `
-      query ($mediaId: Int) {
+      query ($mediaId: Int, $page: Int, $perPage: Int) {
         Media(id: $mediaId) {
           id
           title {
@@ -127,6 +137,15 @@ recommendRouter.get('/:id', async (req, res) => {
                   extraLarge
                 }
                 siteUrl
+                reviews(page: $page, perPage: $perPage) {
+                  nodes {
+                    score
+                    ratingAmount
+                    rating
+                    summary
+                    body
+                  }
+                }
               }
               rating
               userRating
@@ -137,31 +156,31 @@ recommendRouter.get('/:id', async (req, res) => {
     `;
 
     const response = await fetch(ANILIST_API, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
         query,
-        variables: { mediaId },
+        variables: { mediaId, page: 1, perPage: 3 },
       }),
     });
 
     const data = await response.json();
-    console.log('AniList API response:', data);
+    console.log("AniList API response:", data);
 
     if (data.errors) {
-      console.error('AniList API errors:', data.errors);
+      console.error("AniList API errors:", data.errors);
       res.status(StatusCodes.BAD_REQUEST).json({
         status: StatusCodes.BAD_REQUEST,
-        error: data.errors.map((e: any) => e.message).join(', '),
+        error: data.errors.map((e: any) => e.message).join(", "),
       } as APIResponse);
       return;
     }
 
     if (!data.data?.Media) {
-      console.error('No media found for ID:', mediaId);
+      console.error("No media found for ID:", mediaId);
       res.status(StatusCodes.NOT_FOUND).json({
         status: StatusCodes.NOT_FOUND,
         error: `No media found with ID ${mediaId}`,
@@ -180,8 +199,24 @@ recommendRouter.get('/:id', async (req, res) => {
         }
       })
     );
+    let model = await new Promise<string>((res) => {
+      if (user.contentSettings.model) {
+        res(user.contentSettings.model);
+      } else if (DEFAULT_MODEL) {
+        res(DEFAULT_MODEL);
+      } else {
+        fetch(`${OPENAI_API_ENDPOINT}/models`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+        })
+          .then((response) => response.json())
+          .then((data) => res(data.data[0].id));
+      }
+    });
 
-    const validFavorites = favoriteDetails.filter((fav): fav is NonNullable<typeof fav> => fav !== null);
+    const validFavorites = favoriteDetails.filter(
+      (fav): fav is NonNullable<typeof fav> => fav !== null
+    );
     const favoritesContext = JSON.stringify(
       validFavorites.map((fav) => ({
         title: fav.title,
@@ -196,24 +231,25 @@ recommendRouter.get('/:id', async (req, res) => {
     );
 
     // Create the system prompt with favorites context
-    const systemPrompt = `You are an anime/manga recommendation system. Based on a user's favorites list, determine if they would enjoy a given recommendation.
-        
-User's favorites list for context:
-${favoritesContext}
+    const systemPrompt = `You are an anime/manga recommendation system. Based on the context I will give about myself, determine if I would enjoy a given recommendation.
 
-For each recommendation I give you, analyze its compatibility with the user's taste based on:
-1. Genre preferences
+<about_me>
+${user.about}
+</about_me>
+<interests>
+${user.interests.join("\n")}
+</interests>
+<favorites>
+${favoritesContext}
+</favorites>
+
+For each recommendation I give you, analyze its compatibility with my tastes based on:
+1. Genre preferences / interests
 2. Themes and narrative elements
 3. Format and length
 4. Overall quality and ratings
 
-You will receive a JSON string containing the recommendation details.
-Return a JSON object with two fields:
-1. would_recommend (boolean): true if you think the user would enjoy this, false otherwise
-2. reason (string): A brief, concise explanation of your recommendation (max 100 characters)
-
-Response format:
-{"would_recommend": boolean, "reason": "string"}`;
+Additionally, consider what the reviews say about this media. When providing a reason for your recommendation, do **NOT** add any spoilers. Keep your recommendation spoiler-free.`;
 
     // Process each recommendation with LLM
     const recommendations = await Promise.all(
@@ -228,11 +264,54 @@ Response format:
           chapters: media.chapters,
           status: media.status,
           averageScore: media.averageScore,
+          reviews: media.reviews.nodes,
         });
 
         try {
-          const llmResponse = await chat(systemPrompt, mediaContext, user.contentSettings.model ?? 'openai/gpt-4.1');
-          const recommendation = JSON.parse(llmResponse);
+          const completion = await promiseRetry(
+            () =>
+              tokenjs.chat.completions.create({
+                provider: "openai-compatible",
+                model,
+                messages: [
+                  { role: "developer", content: systemPrompt },
+                  { role: "user", content: mediaContext },
+                ],
+                response_format: {
+                  type: "json_schema",
+                  json_schema: {
+                    strict: true,
+                    description: `For detailing the recommendation for a media item, the response should include a boolean indicating whether the user would recommend the media and a string explaining the reason for the recommendation. For the recommendation, do NOT add any spoilers.`,
+                    name: "data",
+                    schema: {
+                      type: "object",
+                      properties: {
+                        would_recommend: {
+                          type: "boolean",
+                        },
+                        reason: {
+                          type: "string",
+                        },
+                      },
+                      required: ["would_recommend", "reason"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+              }),
+            { retries: 3 }
+          );
+          if (!completion.choices[0].message.content) {
+            console.error("No response from LLM");
+            return {
+              media,
+              would_recommend: false,
+              reason: "No response from LLM",
+            };
+          }
+          const recommendation = JSON.parse(
+            completion.choices[0].message.content
+          );
           return {
             media: {
               ...media,
@@ -243,11 +322,11 @@ Response format:
             reason: recommendation.reason,
           };
         } catch (err) {
-          console.error('Error processing recommendation:', err);
+          console.error("Error processing recommendation:", err);
           return {
             media,
             would_recommend: false,
-            reason: 'Error processing recommendation',
+            reason: "Error processing recommendation",
           };
         }
       })
@@ -255,20 +334,33 @@ Response format:
 
     // Format the response according to the specified structure
     const formattedResponse = {
-      data: recommendations.map((rec) => ({
-        id: rec.media.id,
-        would_recommend: rec.would_recommend,
-        reason: rec.reason,
-      })),
+      data: recommendations
+        .filter(
+          (rec) =>
+            rec.reason !== "Error processing recommendation" &&
+            rec.reason !== "No response from LLM"
+        )
+        .map((rec) => ({
+          media: {
+            id: rec.media.id,
+            description: rec.media.description,
+            title: rec.media.title,
+            genres: rec.media.genres,
+            coverImage: rec.media.coverImage,
+            siteUrl: rec.media.siteUrl,
+          },
+          would_recommend: rec.would_recommend,
+          reason: rec.reason,
+        })),
       status: StatusCodes.OK,
     };
 
     res.status(StatusCodes.OK).json(formattedResponse);
   } catch (err) {
-    console.error('Error processing request:', err);
+    console.error("Error processing request:", err);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       status: StatusCodes.INTERNAL_SERVER_ERROR,
-      error: err instanceof Error ? err.message : 'Unknown error',
+      error: err instanceof Error ? err.message : "Unknown error",
     } as APIResponse);
   }
 });
