@@ -193,6 +193,26 @@ recommendRouter.get('/:id', async (req, res) => {
       averageScore: fav.averageScore
     })));
 
+    // Create the system prompt with favorites context
+    const systemPrompt = `You are an anime/manga recommendation system. Based on a user's favorites list, determine if they would enjoy a given recommendation.
+        
+User's favorites list for context:
+${favoritesContext}
+
+For each recommendation I give you, analyze its compatibility with the user's taste based on:
+1. Genre preferences
+2. Themes and narrative elements
+3. Format and length
+4. Overall quality and ratings
+
+You will receive a JSON string containing the recommendation details.
+Return a JSON object with two fields:
+1. would_recommend (boolean): true if you think the user would enjoy this, false otherwise
+2. reason (string): A brief, concise explanation of your recommendation (max 100 characters)
+
+Response format:
+{"would_recommend": boolean, "reason": "string"}`;
+
     // Process each recommendation with LLM
     const recommendations = await Promise.all(
       data.data.Media.recommendations.nodes.map(async (node: any) => {
@@ -208,29 +228,8 @@ recommendRouter.get('/:id', async (req, res) => {
           averageScore: media.averageScore
         });
 
-        const prompt = `You are an anime/manga recommendation system. Based on a user's favorites list and a potential recommendation, determine if the user would enjoy the recommendation.
-        
-User's favorites:
-${favoritesContext}
-
-Potential recommendation:
-${mediaContext}
-
-Analyze the recommendation's compatibility with the user's taste based on:
-1. Genre preferences
-2. Themes and narrative elements
-3. Format and length
-4. Overall quality and ratings
-
-Return a JSON object with two fields:
-1. would_recommend (boolean): true if you think the user would enjoy this, false otherwise
-2. reason (string): A brief, concise explanation of your recommendation (max 100 characters)
-
-Response format:
-{"would_recommend": boolean, "reason": "string"}`;
-
         try {
-          const llmResponse = await chat(prompt, " ");
+          const llmResponse = await chat(systemPrompt, mediaContext);
           const recommendation = JSON.parse(llmResponse);
           return {
             media: {
