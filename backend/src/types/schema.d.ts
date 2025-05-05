@@ -7,6 +7,7 @@ export type User = {
   password: string;
   about: string;
   interests: string[];
+  favorites: ObjectId[];
 };
 
 export type JWTPayload = {

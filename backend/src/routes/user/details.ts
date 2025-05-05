@@ -26,6 +26,7 @@ const putSchema = z.object({
     oldPassword: z.string().optional(),
     interests: z.string().array().optional(),
     about: z.string().optional(),
+    favorities: z.string().array().optional()
 }).refine((s) => s.password === s.confirmPassword, {
     message: "Passwords do not match.",
     path: ["confirmPassword"],
@@ -73,7 +74,7 @@ detailsRouter.get('/', async (req, res) =>{
                     email: user.email,
                     interests: user.interests,
                     about: user.about,
-
+                    favorties: user.favorites,
                 }}
             } as APIResponse);
 
@@ -120,13 +121,14 @@ detailsRouter.put('/', async (req, res) =>{
                 return;
             }
 
-            const { username, email, password, oldPassword, interests, about } = req.body;
+            const { username, email, password, oldPassword, interests, about, favorites } = req.body;
 
             let newName = user.username;
             let newEmail = user.email;
             let newInterests = user.interests;
             let newAbout = user.about;
             let newPassword = user.password;
+            let newFavorites = user.favorites;
 
             if(password){
                 const comparePasswords = await bcrypt.compare(oldPassword, user.password);
@@ -148,10 +150,12 @@ detailsRouter.put('/', async (req, res) =>{
                 newInterests = interests;
             if(about)  
                 newAbout = about;
+            if(favorites)  
+                newFavorites = favorites;
 
             const updatedUser = await db.collection('users').findOneAndUpdate(
                 { _id: user._id },
-                {$set: {username: newName, email: newEmail, interests: newInterests, about: newAbout, password: newPassword}},
+                {$set: {username: newName, email: newEmail, interests: newInterests, about: newAbout, password: newPassword, favorites: newFavorites}},
                 {returnDocument: "after"}
             )
 
@@ -172,6 +176,7 @@ detailsRouter.put('/', async (req, res) =>{
                         avatar: updatedUser.avatar,
                         interests: updatedUser.interests,
                         about: updatedUser.about,
+                        favorites : updatedUser.favorites
                     }
                 }  
             })
