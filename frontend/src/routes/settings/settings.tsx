@@ -1,20 +1,5 @@
 import { useState, useEffect } from 'react';
-import {
-  Layout,
-  Typography,
-  Tabs,
-  Form,
-  Input,
-  Button,
-  Select,
-  Avatar,
-  Upload,
-  Space,
-  Divider,
-  message,
-  Flex,
-  Radio,
-} from 'antd';
+import { Layout, Typography, Tabs, Form, Input, Button, Select, Upload, Space, Divider, Flex, Radio } from 'antd';
 import {
   LockOutlined,
   MailOutlined,
@@ -30,6 +15,12 @@ import { useNotification } from '$/providers/notification/context';
 import './settings.css';
 import Header from '$/components/Header';
 import AvatarMenu from '$/components/AvatarMenu';
+import UserAvatar from '$/components/UserAvatar';
+import useUser, { NsfwContentSetting } from '$/hooks/useUser';
+import { useMessage } from '$/providers/message/context';
+import { BACKEND_URL } from '$/constants';
+import { useAuthStore } from '$/providers/auth/store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -37,50 +28,64 @@ const { TabPane } = Tabs;
 interface SettingsState {
   // User Settings
   email: string;
-  avatar: string;
   // Content Settings
-  hide18Plus: boolean;
-  blur18Plus: boolean;
+  nsfwContentSetting: NsfwContentSetting;
   llmModel: string;
 }
 
+interface PasswordFormData {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 const Settings = () => {
-  // const [form] = Form.useForm();
+  const [user] = useUser();
+  const queryClient = useQueryClient();
+  const token = useAuthStore((s) => s.token);
+  const message = useMessage();
   const [userForm] = Form.useForm();
+  const [passwordForm] = Form.useForm();
   const [contentForm] = Form.useForm();
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('user');
+  const { data: llmOptions } = useQuery({
+    queryKey: ['models'],
+    queryFn: async () => {
+      const response = await fetch(`${BACKEND_URL}/api/models`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const r = (await response.json()) as {
+        data: {
+          id: string;
+        }[];
+      };
+      return r.data.map((x) => ({ value: x.id, label: x.id }));
+    },
+  });
+  // const { } = useMutation({
+  // 	mutationKey: ['']
+  // })
   const notification = useNotification();
 
   // Initial settings values
   const initialSettings: SettingsState = {
-    email: 'user@example.com',
-    avatar: 'https://wallpapers.com/images/high/anime-profile-picture-jioug7q8n43yhlwn.webp',
-    hide18Plus: false,
-    blur18Plus: true,
-    llmModel: 'gpt-4',
+    email: user?.email ?? '',
+    nsfwContentSetting: user?.contentSettings.nsfwContent ?? 'hide',
+    llmModel: user?.contentSettings.model ?? 'gpt-4.1',
   };
 
   const [settings, setSettings] = useState<SettingsState>(initialSettings);
-
-  // LLM model options
-  const llmOptions = [
-    { value: 'gpt-4', label: 'GPT-4 (Recommended)' },
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Faster)' },
-    { value: 'claude-3', label: 'Claude 3 (Balanced)' },
-    { value: 'gemini-pro', label: 'Gemini Pro (Experimental)' },
-  ];
 
   // Initialize forms with current settings
   useEffect(() => {
     userForm.setFieldsValue({
       email: settings.email,
-      avatar: settings.avatar,
     });
 
     contentForm.setFieldsValue({
-      hide18Plus: settings.hide18Plus,
-      blur18Plus: settings.blur18Plus,
+      nsfwContentSetting: settings.nsfwContentSetting,
       llmModel: settings.llmModel,
     });
   }, [settings, userForm, contentForm]);
@@ -88,7 +93,7 @@ const Settings = () => {
   // Check for changes in user settings
   const handleUserFormChange = () => {
     const currentValues = userForm.getFieldsValue();
-    const hasUserChanges = currentValues.email !== settings.email || currentValues.avatar !== settings.avatar;
+    const hasUserChanges = currentValues.email !== settings.email;
 
     setHasChanges(hasUserChanges);
   };
@@ -97,9 +102,7 @@ const Settings = () => {
   const handleContentFormChange = () => {
     const currentValues = contentForm.getFieldsValue();
     const hasContentChanges =
-      currentValues.hide18Plus !== settings.hide18Plus ||
-      currentValues.blur18Plus !== settings.blur18Plus ||
-      currentValues.llmModel !== settings.llmModel;
+      currentValues.nsfwContentSetting !== settings.nsfwContentSetting || currentValues.llmModel !== settings.llmModel;
 
     setHasChanges(hasContentChanges);
   };
@@ -108,6 +111,7 @@ const Settings = () => {
   const handleSaveChanges = () => {
     if (activeTab === 'user') {
       const values = userForm.getFieldsValue();
+      // api implementation
       setSettings((prev) => ({
         ...prev,
         email: values.email,
@@ -117,8 +121,7 @@ const Settings = () => {
       const values = contentForm.getFieldsValue();
       setSettings((prev) => ({
         ...prev,
-        hide18Plus: values.hide18Plus,
-        blur18Plus: values.blur18Plus,
+        nsfwContentSetting: values.nsfwContentSetting,
         llmModel: values.llmModel,
       }));
     }
@@ -132,18 +135,57 @@ const Settings = () => {
     if (activeTab === 'user') {
       userForm.setFieldsValue({
         email: settings.email,
-        avatar: settings.avatar,
       });
     } else {
       contentForm.setFieldsValue({
-        hide18Plus: settings.hide18Plus,
-        blur18Plus: settings.blur18Plus,
+        nsfwContentSetting: settings.nsfwContentSetting,
         llmModel: settings.llmModel,
       });
     }
 
     setHasChanges(false);
     message.info('Changes discarded');
+  };
+
+  // Handle password update
+  const handleUpdatePassword = async () => {
+    passwordForm
+      .validateFields()
+      .then(async (values: PasswordFormData) => {
+        // Validate that new password and confirm password match
+        if (values.newPassword !== values.confirmPassword) {
+          message.error('New password and confirm password do not match');
+          return;
+        }
+
+        const r = await fetch(`${BACKEND_URL}/api/user`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            oldPassword: values.currentPassword,
+            password: values.newPassword,
+            confirmPassword: values.confirmPassword,
+          }),
+        });
+
+        if (r.status !== 200) {
+          message.error('Invalid password');
+          passwordForm.setFields([
+            {
+              name: 'currentPassword',
+              errors: ['Invalid password'],
+            },
+          ]);
+          return;
+        }
+
+        // Reset form after successful update
+        passwordForm.resetFields();
+        message.success('Password updated successfully');
+      })
+      .catch((info) => {
+        console.log('Validate Failed:', info);
+      });
   };
 
   // Show notification when changes are detected
@@ -213,20 +255,23 @@ const Settings = () => {
               <Form form={userForm} layout='vertical' onValuesChange={handleUserFormChange}>
                 <Form.Item label='Profile Picture' name='avatar'>
                   <Space direction='vertical' align='center' style={{ width: '100%' }}>
-                    <Avatar src={userForm.getFieldValue('avatar')} size={100} />
+                    <UserAvatar size={100} />
                     <Upload
-                      showUploadList={false}
-                      beforeUpload={(file) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                          if (e.target) {
-                            userForm.setFieldsValue({ avatar: e.target.result });
-                            handleUserFormChange();
-                          }
-                        };
-                        reader.readAsDataURL(file);
-                        return false;
-                      }}>
+                      method='POST'
+                      action={`${BACKEND_URL}/api/user/avatar`}
+                      name='avatar'
+                      headers={{
+                        Authorization: `Bearer ${token}`,
+                      }}
+                      onChange={(info) => {
+                        if (info.file.status === 'done') {
+                          message.success(`Avatar changed`);
+                          queryClient.invalidateQueries({ queryKey: ['user', token] });
+                        } else if (info.file.status === 'error') {
+                          message.error(info.file.response.error);
+                        }
+                      }}
+                      showUploadList={false}>
                       <Button icon={<UploadOutlined />}>Change Avatar</Button>
                     </Upload>
                   </Space>
@@ -238,20 +283,56 @@ const Settings = () => {
                   rules={[{ required: true, type: 'email', message: 'Please enter a valid email' }]}>
                   <Input prefix={<MailOutlined />} placeholder='Email' />
                 </Form.Item>
+              </Form>
 
-                <Divider />
+              <Divider />
 
-                <Form.Item label='Change Password'>
+              {/* Separate password form to avoid nesting forms */}
+              <div className='password-section'>
+                <Typography.Title level={5}>Change Password</Typography.Title>
+                <Form form={passwordForm} layout='vertical'>
                   <Space direction='vertical' style={{ width: '100%' }}>
-                    <Input.Password prefix={<LockOutlined />} placeholder='Current Password' />
-                    <Input.Password prefix={<LockOutlined />} placeholder='New Password' />
-                    <Input.Password prefix={<LockOutlined />} placeholder='Confirm New Password' />
+                    <Form.Item
+                      name='currentPassword'
+                      rules={[{ required: true, message: 'Please enter your current password' }]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='Current Password' />
+                    </Form.Item>
+
+                    <Form.Item
+                      name='newPassword'
+                      rules={[
+                        { required: true, message: 'Please enter your new password' },
+                        { min: 6, message: 'Password must be at least 6 characters' },
+                        { pattern: /[A-Z]/, message: 'Password must contain at least one uppercase letter' },
+                        { pattern: /[^a-zA-Z0-9]/, message: 'Password must contain at least one special character' },
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='New Password' />
+                    </Form.Item>
+
+                    <Form.Item
+                      name='confirmPassword'
+                      rules={[
+                        { required: true, message: 'Please confirm your new password' },
+                        ({ getFieldValue }) => ({
+                          validator(_, value) {
+                            if (!value || getFieldValue('newPassword') === value) {
+                              return Promise.resolve();
+                            }
+                            return Promise.reject(new Error('The two passwords do not match'));
+                          },
+                        }),
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='Confirm New Password' />
+                    </Form.Item>
+
                     <Flex justify='flex-end'>
-                      <Button type='default'>Update Password</Button>
+                      <Button type='default' onClick={handleUpdatePassword}>
+                        Update Password
+                      </Button>
                     </Flex>
                   </Space>
-                </Form.Item>
-              </Form>
+                </Form>
+              </div>
             </TabPane>
 
             <TabPane tab='Content Settings' key='content'>

@@ -72,7 +72,6 @@ export default function Search() {
   } = useQuery({
     queryKey: ['animeSearch', submittedQuery],
     queryFn: () => searchAnime(submittedQuery),
-    enabled: !!submittedQuery, // Only run query if there's a submitted search query
   });
 
   const handleBack = () => {
@@ -80,9 +79,7 @@ export default function Search() {
   };
 
   const handleSearch = () => {
-    if (searchQuery.trim()) {
-      setSubmittedQuery(searchQuery.trim());
-    }
+    setSubmittedQuery(searchQuery.trim());
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -157,7 +154,7 @@ export default function Search() {
         <Space
           direction='vertical'
           style={{ width: '100%', backgroundColor: token.colorBgLayout }}
-          className='search-input-top'>
+          className={isSuccess ? 'search-input-top no-search-input-top-noanim' : 'search-input-top'}>
           {windowWidth > 1024 && (
             <>
               <Typography.Title level={1} className='search-title search-fade-away'>
@@ -209,7 +206,7 @@ export default function Search() {
               itemLayout='vertical'
               dataSource={searchResults}
               renderItem={(item) => (
-                <List.Item>
+                <List.Item className='search-media-entry'>
                   <List.Item.Meta
                     avatar={
                       <Image
