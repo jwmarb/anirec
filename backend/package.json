@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "dev": "ts-node-dev -r tsconfig-paths/register src/app.ts",
-		"start": "ts-node src/app.ts",
+    "start": "ts-node src/app.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -24,6 +24,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@types/multer": "^1.4.12",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -32,6 +33,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
     "morgan": "^1.10.0",
+    "multer": "1.4.5-lts.2",
     "token.js": "^0.7.1",
     "zod": "^3.24.3"
   }

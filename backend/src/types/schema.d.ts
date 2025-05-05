@@ -8,6 +8,7 @@ export type User = {
   about: string;
   interests: string[];
   favorites: ObjectId[];
+  avatar?: string; // path to the avatar image file
 };
 
 export type JWTPayload = {
