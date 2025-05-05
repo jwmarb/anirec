@@ -1,5 +1,5 @@
 import express from 'express';
-import { JWT_SECRET, OPENAI_API_ENDPOINT } from "$/constants";
+import { JWT_SECRET, OPENAI_API_ENDPOINT, OPENAI_API_KEY } from "$/constants";
 import { StatusCodes } from 'http-status-codes';
 import { APIResponse } from '$/types/api';
 import jwt from 'jsonwebtoken';
@@ -27,7 +27,7 @@ modelRouter.get('/', async (req, res) => {
             return;
         }
 
-        const response = await fetch(`${OPENAI_API_ENDPOINT}/models`, { method: "GET",  headers: { "Authorization": `Bearer ${token}` }});
+        const response = await fetch(`${OPENAI_API_ENDPOINT}/models`, { method: "GET",  headers: { "Authorization": `Bearer ${OPENAI_API_KEY}` }});
 
         const { data } = await response.json();
 
@@ -37,3 +37,5 @@ modelRouter.get('/', async (req, res) => {
         } as APIResponse);
     })
 });
+
+export default modelRouter;

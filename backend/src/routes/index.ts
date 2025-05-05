@@ -4,6 +4,7 @@ import searchRouter from '$/routes/search';
 import authRouter from '$/routes/auth';
 import detailsRouter from './user/details';
 import avatarRouter from '$/routes/user/avatar';
+import modelRouter from '$/routes/models';
 
 const routes = express.Router();
 
@@ -12,5 +13,6 @@ routes.use('/search', searchRouter);
 routes.use('/auth', authRouter);
 routes.use('/user', detailsRouter);
 routes.use('/user/avatar', avatarRouter);
+routes.use('/models', modelRouter);
 
 export default routes;
