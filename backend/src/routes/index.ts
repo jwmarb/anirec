@@ -2,7 +2,7 @@ import express from 'express';
 import healthRouter from '$/routes/health';
 import searchRouter from '$/routes/search';
 import authRouter from '$/routes/auth';
-import avatarRouter from '$/routes/avatar';
+import avatarRouter from '$/routes/user/avatar';
 
 const routes = express.Router();
 
