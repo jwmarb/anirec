@@ -8,8 +8,12 @@ import { findClosestOf } from '$/utils/strings';
 
 const searchRouter = express.Router();
 
+type SearchResult = {
+  [key: string]: string | number | boolean | null;
+};
+
 const searchPayloadSchema = z.object({
-  query: z.string(),
+  query: z.string().min(1),
 });
 
 const genres = [
@@ -377,145 +381,142 @@ const genres = [
   'Zombie',
 ];
 
-searchRouter.post('/', async (req, res) => {
-  const parsedQuery = searchPayloadSchema.safeParse(req.body);
-  if (!parsedQuery.success) {
-    res.status(StatusCodes.UNPROCESSABLE_ENTITY).json({
-      error: parsedQuery.error.errors.map((x) => x.message),
-      status: StatusCodes.UNPROCESSABLE_ENTITY,
+searchRouter.post('/', async (req: express.Request, res: express.Response): Promise<void> => {
+  const result = searchPayloadSchema.safeParse(req.body);
+  if (!result.success) {
+    res.status(StatusCodes.BAD_REQUEST).json({
+      status: StatusCodes.BAD_REQUEST,
+      error: result.error.errors.map(e => e.message).join(', '),
     } as APIResponse);
     return;
   }
 
-  const { data } = parsedQuery;
-  let filtered:
-    | {
-        query: any;
-        argument: string;
-        type: string;
-      }[]
-    | null = null;
-  let params: string | null = null;
-  if (data.query.trim().length > 0) {
-    async function q(
-      prompt: string,
-      argument: string,
-      type: string,
-      postProcess: (q: string) => string | null = (q) => q
-    ) {
-      const query = await chat(prompt, data.query);
-      let parsed;
-      try {
-        if (!query) throw null;
-        parsed = JSON.parse(query.trim().toLowerCase());
-      } catch {
-        parsed = query != null ? postProcess(query) : null;
+  try {
+    const { query: searchQuery } = result.data;
+    let filtered: SearchResult[] | null = null;
+    let params: string | null = null;
+
+    if (searchQuery.trim().length > 0) {
+      async function askAI(
+        prompt: string,
+        argName: string,
+        type: string,
+        postProcess: (q: string) => string | null = (q) => q
+      ): Promise<SearchResult | null> {
+        const response = await chat(prompt, searchQuery);
+        if (!response) return null;
+        
+        let parsed;
+        try {
+          parsed = postProcess(response);
+        } catch {
+          return null;
+        }
+        if (parsed === null) return null;
+
+        return {
+          [argName]: parsed,
+        };
       }
-      return {
-        query: parsed,
-        argument,
-        type,
-      };
-    }
 
-    const today = new Date().toLocaleString().split(',')[0].split('/');
-    today.reverse();
-    today[1] = parseInt(today[1]) < 10 ? '0' + today[1] : today[1];
-    today[2] = parseInt(today[2]) < 10 ? '0' + today[2] : today[2];
+      const today = new Date().toLocaleString().split(',')[0].split('/');
+      today.reverse();
+      today[1] = parseInt(today[1]) < 10 ? '0' + today[1] : today[1];
+      today[2] = parseInt(today[2]) < 10 ? '0' + today[2] : today[2];
 
-    const a = await Promise.all([
-      q(
-        `Answer "MANGA" or "ANIME" or "null" regarding whether the query is asking for a manga or anime or both. If the query has both, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
-        'type',
-        'MediaType',
-        (q) => findClosestOf(['ANIME', 'MANGA'], q)
-      ),
-      q(
-        `Answer "WINTER" or "SPRING" or "SUMMER" or "FALL" or "null" regarding whether the query is asking for a specific season or not. If the query does not specify a season, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
-        'season',
-        'MediaSeason',
-        (q) => findClosestOf(['WINTER', 'SPRING', 'SUMMER', 'FALL'], q)
-      ),
-      q(
-        `The year is ${new Date().getFullYear()}. Answer an unsigned integer representing a calendar year regarding whether the query is asking for a **specific** (not range) year. If the query does not specify a specific year, answer "null". If the query has any duration (e.g. 1 year ago, 1 month ago, etc.), answer "null". Do not answer anything else besides the specified values. If there is a time frame within the year (but does not specify end or start), please also answer with that calendar year`,
-        'seasonYear',
-        'Int'
-      ),
-      q(
-        `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will start (or have started) after a specified date or time (e.g. "all mangas that will start / have started in 2023"). If the query does not ask for this, answer "null". Do not answer anything else besides the specified values.`,
-        'startDate_greater',
-        'FuzzyDateInt'
-      ),
-      q(
-        `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will or have not started until a specified date (e.g. "all mangas that have not started / will not start in 2024 and onwards"). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
-        'startDate_lesser',
-        'FuzzyDateInt'
-      ),
-      q(
-        `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media whose end date is greater than a specified date (e.g. all anime that will end after 2021). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
-        'endDate_greater',
-        'FuzzyDateInt'
-      ),
-      q(
-        `Answer "TV" or "TV_SHORT" or "MOVIE" or "SPECIAL" or "OVA" or "ONA" or "MUSIC" or "MANGA" or "NOVEL" or "ONE_SHOT" regarding whether the query is asking for a specific media format or not. If the query does not specify a media format or if there is more than one media format specified, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
-        'format',
-        'MediaFormat',
-        (q) =>
-          findClosestOf(['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'], q)
-      ),
-      q(
-        `Answer "FINISHED" or "RELEASING" or "NOT_YET_RELEASED" or "CANCELLED" or "HIATUS" regarding whether the query is asking for a specific media status or not. Do not infer the media status from other information (e.g. time). If the query does not specify a media status, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
-        'status',
-        'MediaStatus',
-        (q) => findClosestOf(['FINISHED', 'RELEASING', 'NOT_YET_RELEASED', 'CANCELLED', 'HIATUS'], q)
-      ),
-      q(
-        `Answer "ORIGINAL" or "MANGA" or "LIGHT_NOVEL" or "VISUAL_NOVEL" or "VIDEO_GAME" or "OTHER" or "NOVEL" or "DOUJINSHI" or "ANIME" or "WEB_NOVEL" or "LIVE_ACTION" or "GAME" or "COMIC" or "MULTIMEDIA_PROJECT" or "PICTURE_BOOK" regarding whether the query explicitly states the media source that the media comes from (it has to explicitly mention that there is a media source that it adapted from, e.g. "manga from anime series" or "anime from light novel"). Unless the query **explicitly** mentions this, answer "null"`,
-        'source',
-        'MediaSource',
-        (q) =>
-          findClosestOf(
-            [
-              'ORIGINAL',
-              'MANGA',
-              'LIGHT_NOVEL',
-              'VISUAL_NOVEL',
-              'VIDEO_GAME',
-              'OTHER',
-              'NOVEL',
-              'DOUJINSHI',
-              'ANIME',
-              'WEB_NOVEL',
-              'LIVE_ACTION',
-              'GAME',
-              'COMIC',
-              'MULTIMEDIA_PROJECT',
-              'PICTURE_BOOK',
-            ],
-            q
-          )
-      ),
-      q(
-        `${genres}
+      const a = await Promise.all([
+        askAI(
+          `Answer "MANGA" or "ANIME" or "null" regarding whether the query is asking for a manga or anime or both. If the query has both, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
+          'type',
+          'MediaType',
+          (q) => findClosestOf(['ANIME', 'MANGA'], q)
+        ),
+        askAI(
+          `Answer "WINTER" or "SPRING" or "SUMMER" or "FALL" or "null" regarding whether the query is asking for a specific season or not. If the query does not specify a season, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
+          'season',
+          'MediaSeason',
+          (q) => findClosestOf(['WINTER', 'SPRING', 'SUMMER', 'FALL'], q)
+        ),
+        askAI(
+          `The year is ${new Date().getFullYear()}. Answer an unsigned integer representing a calendar year regarding whether the query is asking for a **specific** (not range) year. If the query does not specify a specific year, answer "null". If the query has any duration (e.g. 1 year ago, 1 month ago, etc.), answer "null". Do not answer anything else besides the specified values. If there is a time frame within the year (but does not specify end or start), please also answer with that calendar year`,
+          'seasonYear',
+          'Int'
+        ),
+        askAI(
+          `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will start (or have started) after a specified date or time (e.g. "all mangas that will start / have started in 2023"). If the query does not ask for this, answer "null". Do not answer anything else besides the specified values.`,
+          'startDate_greater',
+          'FuzzyDateInt'
+        ),
+        askAI(
+          `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will or have not started until a specified date (e.g. "all mangas that have not started / will not start in 2024 and onwards"). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
+          'startDate_lesser',
+          'FuzzyDateInt'
+        ),
+        askAI(
+          `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media whose end date is greater than a specified date (e.g. all anime that will end after 2021). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
+          'endDate_greater',
+          'FuzzyDateInt'
+        ),
+        askAI(
+          `Answer "TV" or "TV_SHORT" or "MOVIE" or "SPECIAL" or "OVA" or "ONA" or "MUSIC" or "MANGA" or "NOVEL" or "ONE_SHOT" regarding whether the query is asking for a specific media format or not. If the query does not specify a media format or if there is more than one media format specified, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
+          'format',
+          'MediaFormat',
+          (q) =>
+            findClosestOf(['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'], q)
+        ),
+        askAI(
+          `Answer "FINISHED" or "RELEASING" or "NOT_YET_RELEASED" or "CANCELLED" or "HIATUS" regarding whether the query is asking for a specific media status or not. Do not infer the media status from other information (e.g. time). If the query does not specify a media status, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
+          'status',
+          'MediaStatus',
+          (q) => findClosestOf(['FINISHED', 'RELEASING', 'NOT_YET_RELEASED', 'CANCELLED', 'HIATUS'], q)
+        ),
+        askAI(
+          `Answer "ORIGINAL" or "MANGA" or "LIGHT_NOVEL" or "VISUAL_NOVEL" or "VIDEO_GAME" or "OTHER" or "NOVEL" or "DOUJINSHI" or "ANIME" or "WEB_NOVEL" or "LIVE_ACTION" or "GAME" or "COMIC" or "MULTIMEDIA_PROJECT" or "PICTURE_BOOK" regarding whether the query explicitly states the media source that the media comes from (it has to explicitly mention that there is a media source that it adapted from, e.g. "manga from anime series" or "anime from light novel"). Unless the query **explicitly** mentions this, answer "null"`,
+          'source',
+          'MediaSource',
+          (q) =>
+            findClosestOf(
+              [
+                'ORIGINAL',
+                'MANGA',
+                'LIGHT_NOVEL',
+                'VISUAL_NOVEL',
+                'VIDEO_GAME',
+                'OTHER',
+                'NOVEL',
+                'DOUJINSHI',
+                'ANIME',
+                'WEB_NOVEL',
+                'LIVE_ACTION',
+                'GAME',
+                'COMIC',
+                'MULTIMEDIA_PROJECT',
+                'PICTURE_BOOK',
+              ],
+              q
+            )
+        ),
+        askAI(
+          `${genres}
 			
 			Given a list of genres, answer "null" if the query does not specify to **include** any genres. Otherwise, answer a comma-separated list of genres that the query specifies to **include**. If a list of genres is given with some genres to exclude, assume that the genres that are not excluded are included. (e.g. "Romance but not Adult nor Ecchi" should be just "Romance") Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
-        'genre_in',
-        '[String]'
-      ),
-      q(
-        `${genres}
+          'genre_in',
+          '[String]'
+        ),
+        askAI(
+          `${genres}
 			
 			Given a list of genres, answer "null" if the query does not specify to **exclude** any genres. Otherwise, answer a comma-separated list of genres that the query specifies to **exclude** the genres. Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
-        'genre_not_in',
-        '[String]'
-      ),
-      q(
-        'Answer "true" or "false" or "null" if the query specifies that the media is 18+. If the query does not even mention about 18+ or is vague/unsure (or not specific such as "its hentai/adult but not hentai/adult"), answer "null", but if they specify concern or want for 18+, then answer with the appropriate boolean value. 18+ in this context means with sexual intercourse or just plain hentai. Do not answer anything else besides the specified values.',
-        'isAdult',
-        'Boolean'
-      ),
-      q(
-        `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **minimum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media *must* meet the minimum requirement or at least meets the criteria (note this is not asking for at most/or maximum rating limit):
+          'genre_not_in',
+          '[String]'
+        ),
+        askAI(
+          'Answer "true" or "false" or "null" if the query specifies that the media is 18+. If the query does not even mention about 18+ or is vague/unsure (or not specific such as "its hentai/adult but not hentai/adult"), answer "null", but if they specify concern or want for 18+, then answer with the appropriate boolean value. 18+ in this context means with sexual intercourse or just plain hentai. Do not answer anything else besides the specified values.',
+          'isAdult',
+          'Boolean'
+        ),
+        askAI(
+          `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **minimum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media *must* meet the minimum requirement or at least meets the criteria (note this is not asking for at most/or maximum rating limit):
 			
 			Top-tier/Best/Perfect => 85
 			Great/Excellent => 80
@@ -523,11 +524,11 @@ searchRouter.post('/', async (req, res) => {
 			Mid/Okay/So-so => 60
 			Bad/Poor => 0
 			`,
-        'averageScore_greater',
-        'Int'
-      ),
-      q(
-        `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **maximum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media's rating *must* be below the requirement or is within the criteria (note this is not asking for at most/or minimum rating but rather all medias that are not above the rating):
+          'averageScore_greater',
+          'Int'
+        ),
+        askAI(
+          `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **maximum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media's rating *must* be below the requirement or is within the criteria (note this is not asking for at most/or minimum rating but rather all medias that are not above the rating):
 			
 			Top-tier/Best/Perfect => 85
 			Great/Excellent => 80
@@ -535,21 +536,21 @@ searchRouter.post('/', async (req, res) => {
 			Mid/Okay/So-so => 60
 			Bad/Poor => 0
 			`,
-        'averageScore_lesser',
-        'Int'
-      ),
-      q(
-        `Answer with a title fragment (or the full title) extracted from the query if it is asking for a specific media title. For example, if the query asks, "Can you give me anime similar to Sword Art Online?", this is not asking for a specific media title but for a media related to the media that is titled "Sword Art Online". However, if the query asks, "What is the title of the anime/manga that begins with "One"?", then the extracted title should be "One". If the query is a sentence that is a statement, assume that this is a title. For example, if the query is "That time i got reincarnated as a slime", then the extracted title should be "That time i got reincarnated as a slime". If the query is "banana", then the extracted title is "banana". A query that is a sentence fragment can be considered as a title *if and only if* the sentence fragment is oddly specific. A query that asks about keywords in a title can be considered as a title. For example, if the query is "anime with the word "sword" in the title", then the extracted title should be "sword". Please note that determining the title in a query can be challenging, so if you do not know, please simply answer "null". Also, please do not make any presumptions on what the query is searching for (e.g. "super good anime adaptation from a visual novel and is science fiction and has time travel" should NOT be assumed to be an actual anime title and should be "null" since this is not specific).`,
-        'search',
-        'String'
-      ),
-    ]);
+          'averageScore_lesser',
+          'Int'
+        ),
+        askAI(
+          `Answer with a title fragment (or the full title) extracted from the query if it is asking for a specific media title. For example, if the query asks, "Can you give me anime similar to Sword Art Online?", this is not asking for a specific media title but for a media related to the media that is titled "Sword Art Online". However, if the query asks, "What is the title of the anime/manga that begins with "One"?", then the extracted title should be "One". If the query is a sentence that is a statement, assume that this is a title. For example, if the query is "That time i got reincarnated as a slime", then the extracted title should be "That time i got reincarnated as a slime". If the query is "banana", then the extracted title is "banana". A query that is a sentence fragment can be considered as a title *if and only if* the sentence fragment is oddly specific. A query that asks about keywords in a title can be considered as a title. For example, if the query is "anime with the word "sword" in the title", then the extracted title should be "sword". Please note that determining the title in a query can be challenging, so if you do not know, please simply answer "null". Also, please do not make any presumptions on what the query is searching for (e.g. "super good anime adaptation from a visual novel and is science fiction and has time travel" should NOT be assumed to be an actual anime title and should be "null" since this is not specific).`,
+          'search',
+          'String'
+        ),
+      ]);
 
-    filtered = a.filter((x) => x.query);
-    params = filtered.map((x) => `$${x.argument}: ${x.type}`).join(', ');
-  }
+      filtered = a.filter((x): x is SearchResult => x !== null && x.query !== null);
+      params = filtered.map((x) => `$${x.argument}: ${x.type}`).join(', ');
+    }
 
-  const query = `
+    const query = `
 	query($page: Int, $perPage: Int${params ? `, ${params}` : ''}) {
 		Page(page: $page, perPage: $perPage) {
 			media${params && filtered ? `(${filtered.map((x) => `${x.argument}: $${x.argument}`).join(', ')})` : ''} {
@@ -587,51 +588,61 @@ searchRouter.post('/', async (req, res) => {
 	}
 	`;
 
-  const body = {
-    query,
-    variables:
-      filtered?.reduce(
-        (prev, curr) => {
-          if (curr.argument.indexOf('_in') !== -1 && typeof curr.query === 'string') {
-            prev[curr.argument] = curr.query.split(',').map((item) => item.trim());
+    const body = {
+      query,
+      variables:
+        filtered?.reduce<Record<string, unknown>>(
+          (prev, curr) => {
+            const argument = curr.argument as string;
+            if (argument.includes('_in') && typeof curr.query === 'string') {
+              prev[argument] = curr.query.split(',').map((item) => item.trim());
+              return prev;
+            }
+
+            if (curr.type === 'FuzzyDateInt' && prev['season'] != null && typeof curr.query === 'number') {
+              if (argument === 'startDate_greater') {
+                prev[argument] = curr.query % 1000 < 401 ? curr.query - 10000 : curr.query - 300;
+              } else {
+                prev[argument] = curr.query % 1000 < 932 ? curr.query + 300 : curr.query + 10000;
+              }
+              return prev;
+            }
+
+            prev[argument] = curr.query;
             return prev;
+          },
+          {
+            perPage: 50,
+            page: 1,
           }
+        ) ?? {},
+    };
 
-          if (curr.type === 'FuzzyDateInt' && prev['season'] != null && typeof curr.query === 'number') {
-            if (curr.argument === 'startDate_greater')
-              prev[curr.argument] = curr.query % 1000 < 401 ? curr.query - 10000 : curr.query - 300;
-            else prev[curr.argument] = curr.query % 1000 < 932 ? curr.query + 300 : curr.query + 10000;
-            return prev;
-          }
+    if (body.variables?.format === 'MANGA') {
+      delete body.variables?.seasonYear;
+    }
 
-          prev[curr.argument] = curr.query;
-          return prev;
-        },
-        {
-          perPage: 50,
-          page: 1,
-        } as Record<string, unknown>
-      ) ?? {},
-  };
+    console.log(filtered, body);
 
-  if (body.variables?.format === 'MANGA') {
-    delete body.variables?.seasonYear;
+    const response = await fetch(ANILIST_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const aniListData = await response.json();
+
+    res.status(StatusCodes.OK).json({
+      data: aniListData.data.Page.media,
+      status: StatusCodes.OK,
+    } as APIResponse);
+  } catch (err) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      status: StatusCodes.INTERNAL_SERVER_ERROR,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    } as APIResponse);
+    return;
   }
-
-  console.log(filtered, body);
-
-  const response = await fetch(ANILIST_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const aniListData = await response.json();
-
-  res.status(StatusCodes.OK).json({
-    data: aniListData.data.Page.media,
-    status: StatusCodes.OK,
-  } as APIResponse);
 });
 
 export default searchRouter;

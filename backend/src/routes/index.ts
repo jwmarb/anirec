@@ -6,6 +6,8 @@ import detailsRouter from './user/details';
 import avatarRouter from '$/routes/user/avatar';
 import modelRouter from '$/routes/models';
 import contentRouter from './user/content';
+import favoritesRouter from './user/favorites';
+import recommendRouter from '$/routes/recommend';
 
 const routes = express.Router();
 
@@ -16,5 +18,7 @@ routes.use('/user', detailsRouter);
 routes.use('/user/avatar', avatarRouter);
 routes.use('/models', modelRouter);
 routes.use('/user/content', contentRouter);
+routes.use('/user/favorites', favoritesRouter);
+routes.use('/recommend', recommendRouter);
 
 export default routes;

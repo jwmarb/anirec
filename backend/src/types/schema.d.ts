@@ -8,7 +8,7 @@ export type User = {
   password: string;
   about: string;
   interests: string[];
-  favorites: ObjectId[];
+  favorites: number[];
   contentSettings: ContentSettings
   avatar?: string; // path to the avatar image file
 };
