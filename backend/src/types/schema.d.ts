@@ -7,6 +7,7 @@ export type User = {
   password: string;
   about: string;
   interests: string[];
+  avatar?: string; // path to the avatar image file
 };
 
 export type JWTPayload = {
