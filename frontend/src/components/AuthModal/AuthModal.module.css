@@ -1,0 +1,35 @@
+.authModal :global(.ant-modal-body) {
+  padding: 24px 32px;
+}
+
+.modalTitle {
+  margin-bottom: 8px !important;
+  margin-top: 8px !important;
+}
+
+.form {
+  margin-top: 24px;
+}
+
+.forgotPassword {
+  float: right;
+  padding: 0;
+}
+
+.socialButtons {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.socialButton {
+  flex: 1;
+}
+
+.switchMode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}

@@ -32,7 +32,7 @@ const fileFilter = (_req: express.Request, file: Express.Multer.File, cb: multer
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG and GIF files are allowed.'));
+    cb(null, false); // Don't throw error, just reject the file
   }
 };
 
@@ -46,11 +46,40 @@ const upload = multer({
 
 avatarRouter.use(authenticateToken as express.RequestHandler);
 
-avatarRouter.post('/', upload.single('avatar'), async (req: express.Request, res: express.Response): Promise<void> => {
+// Use error handling middleware with multer
+avatarRouter.post('/', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      // A Multer error occurred when uploading
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          status: StatusCodes.BAD_REQUEST,
+          error: 'File too large. Maximum size is 5MB',
+        } as APIResponse);
+      }
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        status: StatusCodes.BAD_REQUEST,
+        error: `Upload error: ${err.message}`,
+      } as APIResponse);
+    } else if (err) {
+      // An unknown error occurred
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        status: StatusCodes.INTERNAL_SERVER_ERROR,
+        error: err.message,
+      } as APIResponse);
+    }
+
+    // Everything went fine with multer, now handle the rest of the route
+    handleFileUpload(req, res);
+  });
+});
+
+// Separated the file processing logic for clarity
+async function handleFileUpload(req: express.Request, res: express.Response): Promise<void> {
   if (!req.file) {
     res.status(StatusCodes.BAD_REQUEST).json({
       status: StatusCodes.BAD_REQUEST,
-      error: 'No file uploaded',
+      error: 'No file uploaded or invalid file type. Only JPEG, PNG and GIF files are allowed.',
     } as APIResponse);
     return;
   }
@@ -63,10 +92,9 @@ avatarRouter.post('/', upload.single('avatar'), async (req: express.Request, res
     const oldAvatarPath = user?.avatar;
 
     const avatarPath = path.join('uploads', req.file.filename);
-    const result = await db.collection(Collections.USERS).updateOne(
-      { _id: userId },
-      { $set: { avatar: avatarPath } }
-    );
+    const result = await db
+      .collection(Collections.USERS)
+      .updateOne({ _id: userId }, { $set: { avatar: `/${avatarPath}` } });
 
     if (!result.acknowledged) {
       fs.unlinkSync(req.file.path);
@@ -89,12 +117,14 @@ avatarRouter.post('/', upload.single('avatar'), async (req: express.Request, res
       data: avatarPath,
     } as APIResponse);
   } catch (err) {
-    fs.unlinkSync(req.file.path);
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       status: StatusCodes.INTERNAL_SERVER_ERROR,
       error: err instanceof Error ? err.message : 'Unknown error',
     } as APIResponse);
   }
-});
+}
 
 export default avatarRouter;
