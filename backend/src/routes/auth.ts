@@ -122,6 +122,7 @@ authRouter.post('/register', async (_, res) => {
       password: hashedPassword,
       about: '',
       interests: [],
+      favorites: []
     };
     const insert = await db.collection(Collections.USERS).insertOne(user);
 
