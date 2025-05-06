@@ -76,7 +76,7 @@ async function getMediaDetails(mediaIds: number[]): Promise<MediaItem[]> {
   if (data.errors) {
     throw new Error(data.errors.map((e: any) => e.message).join(', '));
   }
-  
+
   // Return the array of media items or empty array if nothing found
   return data.data.Page.media || [];
 }
@@ -204,7 +204,7 @@ recommendRouter.get('/:id', async (req, res) => {
 
     console.log('Fetching favorite media details for IDs:', user.favorites);
     const favoriteDetails: MediaItem[] = await getMediaDetails(user.favorites);
-    
+
     let model = await new Promise<string>((res) => {
       if (user.contentSettings.model) {
         res(user.contentSettings.model);
@@ -257,88 +257,93 @@ Additionally, consider what the reviews say about this media. When providing a r
 
     // Process each recommendation with LLM
     const recommendations = await Promise.all(
-      data.data.Media.recommendations.nodes.map(async (node: any) => {
-        const media = node.mediaRecommendation;
-        if (media == null) {
-          return {
-            media: null,
-            reason: 'No response from LLM',
-            would_recommend: false,
-          };
-        }
-        const mediaContext = JSON.stringify({
-          title: media.title,
-          description: media.description,
-          genres: media.genres,
-          format: media.format,
-          episodes: media.episodes,
-          chapters: media.chapters,
-          status: media.status,
-          averageScore: media.averageScore,
-          reviews: media.reviews.nodes,
-        });
+      data.data.Media.recommendations.nodes
+        .filter((node: any) => {
+          return !user.favorites.includes(node.mediaRecommendation.id);
+        })
+        .map(async (node: any) => {
+          const media = node.mediaRecommendation;
+          if (media == null) {
+            return {
+              media: null,
+              reason: 'No response from LLM',
+              would_recommend: false,
+            };
+          }
+          const mediaContext = JSON.stringify({
+            title: media.title,
+            description: media.description,
+            genres: media.genres,
+            format: media.format,
+            episodes: media.episodes,
+            chapters: media.chapters,
+            status: media.status,
+            averageScore: media.averageScore,
+            reviews: media.reviews.nodes,
+          });
 
-        try {
-          const completion = await promiseRetry(
-            () =>
-              tokenjs.chat.completions.create({
-                provider: 'openai-compatible',
-                model,
-                messages: [
-                  { role: 'developer', content: systemPrompt },
-                  { role: 'user', content: mediaContext },
-                ],
-                response_format: {
-                  type: 'json_schema',
-                  json_schema: {
-                    strict: true,
-                    description: `For detailing the recommendation for a media item, the response should include a boolean indicating whether the user would recommend the media and a string explaining the reason for the recommendation. For the recommendation, do NOT add any spoilers.`,
-                    name: 'data',
-                    schema: {
-                      type: 'object',
-                      properties: {
-                        would_recommend: {
-                          type: 'boolean',
+          try {
+            const completion = await promiseRetry(
+              () =>
+                tokenjs.chat.completions.create({
+                  provider: 'openai-compatible',
+                  model,
+                  temperature: 0.1,
+                  messages: [
+                    { role: 'developer', content: systemPrompt },
+                    { role: 'user', content: mediaContext },
+                  ],
+                  response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                      strict: true,
+                      description: `For detailing the recommendation for a media item, the response should include a boolean indicating whether the user would recommend the media and a string explaining the reason for the recommendation. For the recommendation, do NOT add any spoilers.`,
+                      name: 'data',
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          would_recommend: {
+                            type: 'boolean',
+                          },
+                          reason: {
+                            type: 'string',
+                          },
                         },
-                        reason: {
-                          type: 'string',
-                        },
+                        required: ['would_recommend', 'reason'],
+                        additionalProperties: false,
                       },
-                      required: ['would_recommend', 'reason'],
-                      additionalProperties: false,
                     },
                   },
-                },
-              }),
-            { retries: 3 }
-          );
-          if (!completion.choices[0].message.content) {
-            console.error('No response from LLM');
+                }),
+              { retries: 3 }
+            );
+            if (!completion.choices[0].message.content) {
+              console.error('No response from LLM');
+              return {
+                media,
+                would_recommend: false,
+                reason: 'No response from LLM',
+              };
+            }
+            const recommendation = JSON.parse(completion.choices[0].message.content);
+            return {
+              media: {
+                ...media,
+                rating: node.rating,
+                userRating: node.userRating,
+              },
+              would_recommend: recommendation.would_recommend,
+              reason: recommendation.reason,
+            };
+          } catch (err) {
+            console.error('Error processing recommendation:', err);
             return {
               media,
               would_recommend: false,
-              reason: 'No response from LLM',
+              reason: 'Error processing recommendation',
             };
           }
-          const recommendation = JSON.parse(completion.choices[0].message.content);
-          return {
-            media: {
-              ...media,
-              rating: node.rating,
-              userRating: node.userRating,
-            },
-            would_recommend: recommendation.would_recommend,
-            reason: recommendation.reason,
-          };
-        } catch (err) {
-          console.error('Error processing recommendation:', err);
-          return {
-            media,
-            would_recommend: false,
-            reason: 'Error processing recommendation',
-          };
-        }
-      })
+        })
     );
 
     // Format the response according to the specified structure

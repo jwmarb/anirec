@@ -22,10 +22,6 @@
   transition: all 0.3s ease;
 }
 
-.ant-list-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
 
 @media (max-width: 768px) {
   .favorites-content {

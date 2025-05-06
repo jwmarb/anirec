@@ -53,6 +53,7 @@ export default function Search() {
         body: JSON.stringify({ mediaId }),
       });
       queryClient.invalidateQueries({ queryKey: [authToken, 'favorites'] });
+      queryClient.invalidateQueries({ queryKey: [authToken, 'favorites', 'populated'] });
     },
   });
   const { mutateAsync: deleteFromFavorites } = useMutation<void, Error, { mediaId: number }>({
@@ -66,6 +67,7 @@ export default function Search() {
         body: JSON.stringify({ mediaId }),
       });
       queryClient.invalidateQueries({ queryKey: [authToken, 'favorites'] });
+      queryClient.invalidateQueries({ queryKey: [authToken, 'favorites', 'populated'] });
     },
   });
   const { data: favoriteIds } = useQuery({

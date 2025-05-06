@@ -17,6 +17,7 @@ export async function chat(
   const completion = await tokenjs.chat.completions.create({
     provider: 'openai-compatible',
     model,
+    temperature: 0.2,
     messages: [
       { role: 'developer', content: prompt },
       { role: 'user', content: query },

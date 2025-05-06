@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Layout, Typography, List, Space, Spin, Empty, Button, theme, Modal } from 'antd';
 import { HeartOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import ToggleTheme from '$/components/ToggleTheme';
@@ -52,7 +52,7 @@ const Favorites = withProtectedRoute(() => {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: [authToken, 'favorites'],
+    queryKey: [authToken, 'favorites', 'populated'],
     queryFn: async () => {
       const response = await fetch(`${BACKEND_URL}/api/user/favorites?populate=true`, {
         method: 'GET',
@@ -77,6 +77,7 @@ const Favorites = withProtectedRoute(() => {
         body: JSON.stringify({ mediaId }),
       });
 
+      queryClient.invalidateQueries({ queryKey: [authToken, 'favorites', 'populated'] });
       queryClient.invalidateQueries({ queryKey: [authToken, 'favorites'] });
     },
     onSuccess: () => {
@@ -130,23 +131,26 @@ const Favorites = withProtectedRoute(() => {
       })
     : [];
 
-  const renderItem = (item: Media) => {
-    const isUnblurred = unblurredItems.has(item.id);
-    const nsfwSetting = user?.contentSettings?.nsfwContent || 'hide';
-    const displayTitle = item.title.english || item.title.romaji || item.title.native || 'Anime';
+  const renderItem = React.useCallback(
+    (item: Media) => {
+      const isUnblurred = unblurredItems.has(item.id);
+      const nsfwSetting = user?.contentSettings?.nsfwContent || 'hide';
+      const displayTitle = item.title.english || item.title.romaji || item.title.native || 'Anime';
 
-    return (
-      <SearchItem
-        item={item}
-        isFavorite={true}
-        nsfwSetting={nsfwSetting as 'show' | 'blur' | 'hide'}
-        isUnblurred={isUnblurred}
-        onToggleBlur={toggleBlur}
-        onToggleFavorite={() => openRemoveConfirmation(item.id, displayTitle)}
-        authToken={authToken}
-      />
-    );
-  };
+      return (
+        <SearchItem
+          item={item}
+          isFavorite={true}
+          nsfwSetting={nsfwSetting as 'show' | 'blur' | 'hide'}
+          isUnblurred={isUnblurred}
+          onToggleBlur={toggleBlur}
+          onToggleFavorite={() => openRemoveConfirmation(item.id, displayTitle)}
+          authToken={authToken}
+        />
+      );
+    },
+    [authToken, unblurredItems, user?.contentSettings?.nsfwContent]
+  );
 
   return (
     <Layout className='layout'>
