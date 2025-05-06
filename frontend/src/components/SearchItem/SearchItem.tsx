@@ -223,6 +223,7 @@ const SearchItem = React.memo(
         </List.Item>
         {isMobile ? (
           <MobileRecommendations
+            isNSFW={isNsfw}
             visible={showRecommendations}
             onClose={handleModalClose}
             recommendations={recommendations}
@@ -230,6 +231,7 @@ const SearchItem = React.memo(
           />
         ) : (
           <DesktopRecommendations
+            isNSFW={isNsfw}
             visible={showRecommendations}
             onClose={handleModalClose}
             recommendations={recommendations}

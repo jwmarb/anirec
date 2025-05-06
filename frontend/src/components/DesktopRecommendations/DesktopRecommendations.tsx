@@ -1,16 +1,30 @@
 import { RecommendationsAPIResponse } from '$/components/SearchItem/SearchItem';
-import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons';
+import useUser from '$/hooks/useUser';
+import { CheckCircleFilled, CloseCircleFilled, EyeInvisibleOutlined } from '@ant-design/icons';
 import { Flex, Image, List, Modal, Space, Spin, Tag, theme, Typography } from 'antd';
+import React from 'react';
 
 type RecommendationsProps = {
   visible: boolean;
   onClose: () => void;
   recommendations: RecommendationsAPIResponse;
   isLoading: boolean;
+  isNSFW: boolean;
 };
 
-export default function DesktopRecommendations({ visible, onClose, recommendations, isLoading }: RecommendationsProps) {
+export default function DesktopRecommendations({
+  visible,
+  onClose,
+  recommendations,
+  isLoading,
+  isNSFW,
+}: RecommendationsProps) {
   const { token } = theme.useToken();
+  const [unblur, setUnblur] = React.useState<boolean>(false);
+  const [user] = useUser();
+
+  const shouldBlur = isNSFW && user?.contentSettings.nsfwContent === 'blur' && !unblur;
+
   return (
     <Modal
       title='Similar Recommendations'
@@ -49,12 +63,40 @@ export default function DesktopRecommendations({ visible, onClose, recommendatio
               }>
               <List.Item.Meta
                 avatar={
-                  <Image
-                    width={80}
-                    height={120}
-                    src={rec.media.coverImage.large}
-                    preview={{ src: rec.media.coverImage.extraLarge }}
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Image
+                        width={80}
+                        height={120}
+                        src={rec.media.coverImage.large}
+                        preview={{ src: rec.media.coverImage.extraLarge }}
+                        style={shouldBlur ? { filter: 'blur(10px)' } : {}}
+                        wrapperStyle={shouldBlur ? { overflow: 'hidden' } : {}}
+                      />
+                      {shouldBlur && (
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => setUnblur(true)}>
+                          <EyeInvisibleOutlined style={{ fontSize: '24px', color: 'white', zIndex: 2 }} />
+                        </div>
+                      )}
+                    </div>
+                    {isNSFW && (
+                      <Tag color='red' style={{ position: 'absolute', top: 0, right: 0 }}>
+                        18+
+                      </Tag>
+                    )}
+                  </div>
                 }
                 title={
                   <Flex vertical>
@@ -67,20 +109,39 @@ export default function DesktopRecommendations({ visible, onClose, recommendatio
                   </Flex>
                 }
                 description={
-                  <Space direction='vertical'>
-                    <div>
-                      {rec.media.genres.map((genre: string) => (
-                        <Tag key={genre} color='blue'>
-                          {genre}
-                        </Tag>
-                      ))}
-                    </div>
-                    <div
-                      dangerouslySetInnerHTML={{
-                        __html: rec.media.description,
-                      }}
-                    />
-                  </Space>
+                  <div style={{ position: 'relative' }}>
+                    <Space direction='vertical' style={shouldBlur ? { filter: 'blur(5px)' } : {}}>
+                      <div>
+                        {rec.media.genres.map((genre: string) => (
+                          <Tag key={genre} color='blue'>
+                            {genre}
+                          </Tag>
+                        ))}
+                      </div>
+                      <div
+                        dangerouslySetInnerHTML={{
+                          __html: rec.media.description,
+                        }}
+                      />
+                    </Space>
+                    {shouldBlur && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => setUnblur(true)}>
+                        <EyeInvisibleOutlined style={{ fontSize: '24px', color: token.colorPrimary, zIndex: 2 }} />
+                      </div>
+                    )}
+                  </div>
                 }
               />
             </List.Item>
