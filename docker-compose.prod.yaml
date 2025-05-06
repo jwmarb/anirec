@@ -1,0 +1,42 @@
+services:
+  anirec:
+    container_name: anirec
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./uploads:/app/backend/uploads
+    environment:
+      - PORT=8080
+      - JWT_SECRET=super-duper-hidden-secret! # Add your JWT secret here
+      - DEFAULT_MODEL=google/gemini-2.5-flash
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_ENDPOINT=${OPENAI_API_ENDPOINT}
+      - MONGODB_URI=mongodb://root:example@db:27017/
+      - NODE_ENV=production
+    env_file:
+      - .env # will contain all your secret stuff
+      - frontend/.env
+      - backend/.env
+    networks:
+      - anirec-network
+  mongodb:
+    container_name: mongodb
+    image: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - 27017:27017
+    volumes:
+      - ./mongodb:/data/db
+    networks:
+      anirec-network:
+        aliases:
+          - db
+networks:
+  anirec-network:
+    driver: bridge
