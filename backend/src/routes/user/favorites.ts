@@ -1,4 +1,4 @@
-import { Collections, JWT_SECRET } from '$/constants';
+import { ANILIST_API, Collections, JWT_SECRET } from '$/constants';
 import { database, getDatabase } from '$/middleware/mongo';
 import { APIResponse } from '$/types/api';
 import { JWTPayload, User } from '$/types/schema';
@@ -13,7 +13,8 @@ favoritesRouter.use(database);
 
 const postSchema = z.object({
     mediaId: z.number()
-})
+});
+
 
 favoritesRouter.post('/', async (req, res) => {
     const result = postSchema.safeParse(req.body);
@@ -165,10 +166,61 @@ favoritesRouter.get('/', async (req, res) =>{
                 return;
             }
 
-            res.status(StatusCodes.OK).json({
-                status: StatusCodes.OK,
-                data: user.favorites
-            } as APIResponse);
+            const { populate } = req.query;
+
+            if(!populate){
+                res.status(StatusCodes.OK).json({
+                    status: StatusCodes.OK,
+                    data: user.favorites
+                } as APIResponse);
+            }
+            else{
+                    const query = `
+                    query ($mediaIds: [Int], $perPage: Int) {
+                        Page(perPage: $perPage) {
+                            media(id_in: $mediaIds) {
+                           id
+                            coverImage {
+                                extraLarge
+                                large
+                            }
+                            title {
+                                english
+                                native
+                                romaji
+                            }
+                            siteUrl
+                            averageScore
+                            genres
+                        }
+                        }
+                        }
+                  `;
+
+                  const response = await fetch(ANILIST_API, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                      },
+                      body: JSON.stringify({
+                        query,
+                        variables: { perPage: 50, mediaIds : user.favorites },
+                      }),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.errors) {
+                        throw new Error(data.errors.map((e: any) => e.message).join(', '));
+                      }
+
+                      res.status(StatusCodes.OK).json({
+                        status: StatusCodes.OK,
+                        data: data.data.Page.media
+                    } as APIResponse);
+            }
+           
         } catch (err){
             res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
                 status: StatusCodes.INTERNAL_SERVER_ERROR,
