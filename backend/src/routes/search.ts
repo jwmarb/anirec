@@ -2,7 +2,7 @@ import { APIResponse } from '$/types/api';
 import express from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
-import { chat } from '$/utils/llm';
+import { chat, tokenjs } from '$/utils/llm';
 import { ANILIST_API, Collections, DEFAULT_MODEL, OPENAI_API_ENDPOINT, OPENAI_API_KEY } from '$/constants';
 import { findClosestOf } from '$/utils/strings';
 import { extractUserId } from '$/utils/auth';
@@ -436,36 +436,56 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
     });
 
     if (searchQuery.trim().length > 0) {
-      async function askAI(
+      async function q(
         prompt: string,
         argName: string,
         type: string,
-        postProcess: (q: string) => string | null = (q) => q
-      ): Promise<SearchResult | null> {
-        const response = await chat(prompt, searchQuery, model);
-        if (!response) return null;
-
-        let parsed: string | null = null;
-        try {
-          parsed = postProcess(response);
-        } catch {
-          return null;
-        }
-        if (parsed == null) return null;
-
-        try {
-          return {
-            key: argName,
-            type,
-            value: JSON.parse(parsed.toLowerCase()),
+        properties: {
+          type: string | string[];
+          items?: {
+            type: string | string[];
+            enum?: string[];
           };
-        } catch {
-          return {
-            key: argName,
-            type,
-            value: parsed,
-          };
+          enum?: string[];
+          description?: string;
         }
+      ) {
+        console.log(`getting response from ${model}`);
+        const r = await tokenjs.chat.completions.create({
+          provider: 'openai-compatible',
+          model,
+          temperature: 0.1,
+          messages: [
+            {
+              role: 'developer',
+              content: prompt,
+            },
+            { role: 'user', content: searchQuery },
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              strict: true,
+              name: 'data',
+              schema: {
+                type: 'object',
+                properties: {
+                  value: properties,
+                },
+                required: ['value'],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const content = r.choices[0].message.content;
+        if (!content) return null;
+        const data = JSON.parse(content).value as string | number | null | boolean;
+        return {
+          key: argName,
+          type,
+          value: data,
+        };
       }
 
       const today = new Date().toLocaleString().split(',')[0].split('/');
@@ -474,150 +494,202 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       today[2] = parseInt(today[2]) < 10 ? '0' + today[2] : today[2];
 
       const a = await Promise.all([
-        askAI(
+        q(
           `Answer "MANGA" or "ANIME" or "null" regarding whether the query is asking for a manga or anime or both. If the query has both, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
           'type',
           'MediaType',
-          (q) => findClosestOf(['ANIME', 'MANGA'], q)
+          {
+            type: ['string', 'null'],
+            enum: ['MANGA', 'ANIME'],
+          }
         ),
-        askAI(
+        q(
           `Answer "WINTER" or "SPRING" or "SUMMER" or "FALL" or "null" regarding whether the query is asking for a specific season or not. If the query does not specify a season, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
           'season',
           'MediaSeason',
-          (q) => findClosestOf(['WINTER', 'SPRING', 'SUMMER', 'FALL'], q)
+          {
+            type: ['string', 'null'],
+            enum: ['WINTER', 'SPRING', 'SUMMER', 'FALL'],
+          }
         ),
-        askAI(
+        q(
           `The year is ${new Date().getFullYear()}. Answer an unsigned integer representing a calendar year regarding whether the query is asking for a **specific** (not range) year. If the query does not specify a specific year, answer "null". If the query has any duration (e.g. 1 year ago, 1 month ago, etc.), answer "null". Do not answer anything else besides the specified values. If there is a time frame within the year (but does not specify end or start), please also answer with that calendar year`,
           'seasonYear',
-          'Int'
+          'Int',
+          {
+            type: ['number', 'null'],
+            description: 'A calendar year',
+          }
         ),
-        askAI(
+        q(
           `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will start (or have started) after a specified date or time (e.g. "all mangas that will start / have started in 2023"). If the query does not ask for this, answer "null". Do not answer anything else besides the specified values.`,
           'startDate_greater',
-          'FuzzyDateInt'
+          'FuzzyDateInt',
+          {
+            type: ['number', 'null'],
+            description: 'An 8-digit long date integer in the format of YYYYMMDD',
+          }
         ),
-        askAI(
+        q(
           `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media that will or have not started until a specified date (e.g. "all mangas that have not started / will not start in 2024 and onwards"). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
           'startDate_lesser',
-          'FuzzyDateInt'
+          'FuzzyDateInt',
+          {
+            type: ['number', 'null'],
+            description: 'An 8-digit long date integer in the format of YYYYMMDD',
+          }
         ),
-        askAI(
+        q(
           `Today is ${today}. Answer an 8-digit long date integer (YYYYMMDD) regarding whether the query wants all media whose end date is greater than a specified date (e.g. all anime that will end after 2021). If the query does not include this, answer "null". Do not answer anything else besides the specified values.`,
           'endDate_greater',
-          'FuzzyDateInt'
+          'FuzzyDateInt',
+          {
+            type: ['number', 'null'],
+            description: 'An 8-digit long date integer in the format of YYYYMMDD',
+          }
         ),
-        askAI(
-          `Answer "TV" or "TV_SHORT" or "MOVIE" or "SPECIAL" or "OVA" or "ONA" or "MUSIC" or "MANGA" or "NOVEL" or "ONE_SHOT" regarding whether the query is asking for a specific media format or not. If the query does not specify a media format or if there is more than one media format specified, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
+        q(
+          `Answer "TV" or "TV_SHORT" or "MOVIE" or "SPECIAL" or "OVA" or "ONA" or "MUSIC" or "MANGA" or "NOVEL" or "ONE_SHOT" regarding whether the query is asking for a specific media format or not. If the query does not specify a media format or if there is more than one media format specified, answer null. Do not answer anything else besides the specified values. Do not make any inferences and guess based on the query.`,
           'format',
           'MediaFormat',
-          (q) =>
-            findClosestOf(
-              ['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'],
-              q
-            )
+          {
+            type: ['string', 'null'],
+            enum: ['TV', 'TV_SHORT', 'MOVIE', 'SPECIAL', 'OVA', 'ONA', 'MUSIC', 'MANGA', 'NOVEL', 'ONE_SHOT'],
+          }
         ),
-        askAI(
-          `Answer "FINISHED" or "RELEASING" or "NOT_YET_RELEASED" or "CANCELLED" or "HIATUS" regarding whether the query is asking for a specific media status or not. Do not infer the media status from other information (e.g. time). If the query does not specify a media status, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess.`,
+        q(
+          `Answer "FINISHED" or "RELEASING" or "NOT_YET_RELEASED" or "CANCELLED" or "HIATUS" regarding whether the query is asking for a specific media status or not. Do not infer the media status from other information (e.g. time). If the query does not specify a media status, answer "null". Do not answer anything else besides the specified values. Do not make any inferences and guess. Only answer what you are told to answer and nothing else. If the query is not even related to the specific media status, return null (e.g. "romcom manga" -> null because there is no status).`,
           'status',
           'MediaStatus',
-          (q) => findClosestOf(['FINISHED', 'RELEASING', 'NOT_YET_RELEASED', 'CANCELLED', 'HIATUS'], q)
+          {
+            type: ['string', 'null'],
+            enum: ['FINISHED', 'RELEASING', 'NOT_YET_RELEASED', 'CANCELLED', 'HIATUS'],
+          }
         ),
-        askAI(
-          `Answer "ORIGINAL" or "MANGA" or "LIGHT_NOVEL" or "VISUAL_NOVEL" or "VIDEO_GAME" or "OTHER" or "NOVEL" or "DOUJINSHI" or "ANIME" or "WEB_NOVEL" or "LIVE_ACTION" or "GAME" or "COMIC" or "MULTIMEDIA_PROJECT" or "PICTURE_BOOK" regarding whether the query explicitly states the media source that the media comes from (it has to explicitly mention that there is a media source that it adapted from, e.g. "manga from anime series" or "anime from light novel"). Unless the query **explicitly** mentions this, answer "null"`,
+        q(
+          `Answer "ORIGINAL" or "MANGA" or "LIGHT_NOVEL" or "VISUAL_NOVEL" or "VIDEO_GAME" or "OTHER" or "NOVEL" or "DOUJINSHI" or "ANIME" or "WEB_NOVEL" or "LIVE_ACTION" or "GAME" or "COMIC" or "MULTIMEDIA_PROJECT" or "PICTURE_BOOK" regarding whether the query explicitly states the media source that the media comes from (it has to explicitly mention that there is a media source that it adapted from, e.g. "manga from anime series" or "anime from light novel"). Unless the query **explicitly** mentions this, answer "null". This should *only* be defined if the user explicitly mentions the media source that the media comes from!`,
           'source',
           'MediaSource',
-          (q) =>
-            findClosestOf(
-              [
-                'ORIGINAL',
-                'MANGA',
-                'LIGHT_NOVEL',
-                'VISUAL_NOVEL',
-                'VIDEO_GAME',
-                'OTHER',
-                'NOVEL',
-                'DOUJINSHI',
-                'ANIME',
-                'WEB_NOVEL',
-                'LIVE_ACTION',
-                'GAME',
-                'COMIC',
-                'MULTIMEDIA_PROJECT',
-                'PICTURE_BOOK',
-              ],
-              q
-            )
+          {
+            type: ['string', 'null'],
+            description: 'The media source that the media is derived from',
+            enum: [
+              'ORIGINAL',
+              'MANGA',
+              'LIGHT_NOVEL',
+              'VISUAL_NOVEL',
+              'VIDEO_GAME',
+              'OTHER',
+              'NOVEL',
+              'DOUJINSHI',
+              'ANIME',
+              'WEB_NOVEL',
+              'LIVE_ACTION',
+              'GAME',
+              'COMIC',
+              'MULTIMEDIA_PROJECT',
+              'PICTURE_BOOK',
+            ],
+          }
         ),
-        askAI(
+        q(
           `${genres}
-			
-			Given a list of genres, answer "null" if the query does not specify to **include** any genres. Otherwise, answer a comma-separated list of genres that the query specifies to **include**. If a list of genres is given with some genres to exclude, assume that the genres that are not excluded are included. (e.g. "Romance but not Adult nor Ecchi" should be just "Romance") Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
+					
+					Given a list of genres, answer a blank list if the query does not specify to **include** any genres. Otherwise, answer all genres that the query specifies to **include**. If a list of genres is given with some genres to exclude, assume that the genres that are not excluded are included. (e.g. "Romance but not Adult nor Ecchi" should be just "Romance") Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
           'genre_in',
-          '[String]'
+          '[String]',
+          {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+          }
         ),
-        askAI(
+        q(
           `${genres}
-			
-			Given a list of genres, answer "null" if the query does not specify to **exclude** any genres. Otherwise, answer a comma-separated list of genres that the query specifies to **exclude** the genres. Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
+						
+						Given a list of genres, answer a blank list if the query does not specify to **exclude** any genres. Otherwise, answer a comma-separated list of genres that the query specifies to **exclude** the genres. Do not answer anything else besides the specified values. Do not make any presumptions and guess.`,
           'genre_not_in',
-          '[String]'
+          '[String]',
+          {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+          }
         ),
-        askAI(
+        q(
           'Answer "true" or "false" or "null" if the query specifies that the media is 18+. If the query does not even mention about 18+ or is vague/unsure (or not specific such as "its hentai/adult but not hentai/adult"), answer "null", but if they specify concern or want for 18+, then answer with the appropriate boolean value. 18+ in this context means with sexual intercourse or just plain hentai. Do not answer anything else besides the specified values.',
           'isAdult',
-          'Boolean'
+          'Boolean',
+          {
+            type: ['boolean', 'null'],
+          }
         ),
-        askAI(
+        q(
           `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **minimum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media *must* meet the minimum requirement or at least meets the criteria (note this is not asking for at most/or maximum rating limit):
-			
-			Top-tier/Best/Perfect => 85
-			Great/Excellent => 80
-			Good/Decent/Average => 70
-			Mid/Okay/So-so => 60
-			Bad/Poor => 0
-			`,
+
+        Top-tier/Best/Perfect => 85
+        Great/Excellent => 80
+        Good/Decent/Average => 70
+        Mid/Okay/So-so => 60
+        Bad/Poor => 0
+        `,
           'averageScore_greater',
-          'Int'
+          'Int',
+          {
+            type: ['number', 'null'],
+            description: 'An integer between 1 to 100 or null',
+          }
         ),
-        askAI(
+        q(
           `Answer an integer from 1 to 100 or "null" regarding if the query specifies a **maximum** rating for a media. If the query mentions subjective words such as "good" or "great", please use the following mapping as reference for such categories if and only if it is mentioned that the media's rating *must* be below the requirement or is within the criteria (note this is not asking for at most/or minimum rating but rather all medias that are not above the rating):
-			
-			Top-tier/Best/Perfect => 85
-			Great/Excellent => 80
-			Good/Decent/Average => 70
-			Mid/Okay/So-so => 60
-			Bad/Poor => 0
-			`,
+
+        Top-tier/Best/Perfect => 85
+        Great/Excellent => 80
+        Good/Decent/Average => 70
+        Mid/Okay/So-so => 60
+        Bad/Poor => 0
+        `,
           'averageScore_lesser',
-          'Int'
+          'Int',
+          {
+            type: ['number', 'null'],
+            description: 'An integer between 1 to 100 or null',
+          }
         ),
-        askAI(
+        q(
           `Extract a specific media title (or fragment) from the query if present. Follow these rules:
 
-					EXTRACT THE TITLE WHEN:
-					- The query is an exact media title (e.g., "That time I got reincarnated as a slime" → "That time I got reincarnated as a slime")
-					- The query clearly asks about a specific title (e.g., "Tell me about Sword Art Online" → "Sword Art Online")
-					- The query contains a search for a partial title (e.g., "anime with 'sword' in the title" → "sword")
-					- The query asks for a title with specific identifying characteristics (e.g., "What's the title of the anime that begins with 'One'?" → "One")
-				
-					DO NOT EXTRACT AND RETURN "null" WHEN:
-					- The query contains subjective descriptors like "best", "peak", "good", "top" (e.g., "peak light novel" → "null")
-					- The query asks for recommendations similar to a title (e.g., "Anime similar to Sword Art Online" → "null")
-					- The query describes general media types, genres, or concepts (e.g., "light novel", "romance anime" → "null")
-					- The query uses a title only as a reference point (e.g., "Is there anything better than One Piece?" → "null")
-					- The query contains general qualifiers or adjectives with media formats (e.g., "popular anime", "trending manga" → "null")
-					- The query is ambiguous or could be interpreted as either a title search or a descriptive search
-					- You're uncertain whether the query contains a specific title
-				
-					A single word or short phrase should only be considered a title if it's distinctive and unlikely to be a general descriptor (e.g., "Naruto" is a title, but "romance" is not).
-				
-					Always prioritize precision over recall. If in doubt, return "null".`,
+        		EXTRACT THE TITLE WHEN:
+        		- The query is an exact media title (e.g., "That time I got reincarnated as a slime" → "That time I got reincarnated as a slime")
+        		- The query clearly asks about a specific title (e.g., "Tell me about Sword Art Online" → "Sword Art Online")
+        		- The query contains a search for a partial title (e.g., "anime with 'sword' in the title" → "sword")
+        		- The query asks for a title with specific identifying characteristics (e.g., "What's the title of the anime that begins with 'One'?" → "One")
+
+        		DO NOT EXTRACT AND RETURN "null" WHEN:
+        		- The query contains subjective descriptors like "best", "peak", "good", "top" (e.g., "peak light novel" → null)
+        		- The query asks for recommendations similar to a title (e.g., "Anime similar to Sword Art Online" → null)
+        		- The query describes general media types, genres, or concepts (e.g., "light novel", "romance anime" → null)
+        		- The query uses a title only as a reference point (e.g., "Is there anything better than One Piece?" → null
+        		- The query contains general qualifiers or adjectives with media formats (e.g., "popular anime", "trending manga" → null)
+        		- The query is ambiguous or could be interpreted as either a title search or a descriptive search
+        		- You're uncertain whether the query contains a specific title
+
+        		A single word or short phrase should only be considered a title if it's distinctive and unlikely to be a general descriptor (e.g., "Naruto" is a title, but "romance" is not).
+
+        		Always prioritize precision over recall. If in doubt, return null`,
           'search',
-          'String'
+          'String',
+          {
+            type: ['string', 'null'],
+          }
         ),
       ]);
 
-      filtered = a.filter((x): x is SearchResult => x != null && x.value != null);
+      filtered = a.filter(
+        (x): x is SearchResult => x != null && x.value != null && (!Array.isArray(x.value) || x.value.length !== 0)
+      );
       params = filtered.map((x) => `$${x.key}: ${x.type}`).join(', ');
     }
 
@@ -664,11 +736,6 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
       variables:
         filtered?.reduce<Record<string, unknown>>(
           (prev, curr) => {
-            if (curr.key.includes('_in') && typeof curr.value === 'string') {
-              prev[curr.key] = curr.value.split(',').map((item) => item.trim());
-              return prev;
-            }
-
             if (curr.type === 'FuzzyDateInt' && prev['season'] != null && typeof curr.value === 'number') {
               if (curr.key === 'startDate_greater') {
                 prev[curr.key] = curr.value % 1000 < 401 ? curr.value - 10000 : curr.value - 300;
