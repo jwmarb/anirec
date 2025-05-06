@@ -16,25 +16,46 @@ const recommendParamsSchema = z.object({
   id: z.string().transform((val) => parseInt(val, 10)),
 });
 
-async function getMediaDetails(mediaId: number) {
+// Define the type for media items
+type MediaItem = {
+  id: number;
+  title: {
+    english: string | null;
+    native: string | null;
+    romaji: string | null;
+  };
+  description: string;
+  genres: string[];
+  format: string;
+  episodes: number | null;
+  chapters: number | null;
+  status: string;
+  averageScore: number;
+  popularity: number;
+  siteUrl: string;
+};
+
+async function getMediaDetails(mediaIds: number[]): Promise<MediaItem[]> {
   const query = `
-    query ($mediaId: Int) {
-      Media(id: $mediaId) {
-        id
-        title {
-          english
-          native
-          romaji
+    query ($mediaIds: [Int]) {
+      Page(perPage: ${mediaIds.length}) {
+        media(id_in: $mediaIds) {
+          id
+          title {
+            english
+            native
+            romaji
+          }
+          description
+          genres
+          format
+          episodes
+          chapters
+          status
+          averageScore
+          popularity
+          siteUrl
         }
-        description
-        genres
-        format
-        episodes
-        chapters
-        status
-        averageScore
-        popularity
-        siteUrl
       }
     }
   `;
@@ -47,7 +68,7 @@ async function getMediaDetails(mediaId: number) {
     },
     body: JSON.stringify({
       query,
-      variables: { mediaId },
+      variables: { mediaIds },
     }),
   });
 
@@ -55,7 +76,9 @@ async function getMediaDetails(mediaId: number) {
   if (data.errors) {
     throw new Error(data.errors.map((e: any) => e.message).join(', '));
   }
-  return data.data.Media;
+  
+  // Return the array of media items or empty array if nothing found
+  return data.data.Page.media || [];
 }
 
 recommendRouter.get('/:id', async (req, res) => {
@@ -179,17 +202,9 @@ recommendRouter.get('/:id', async (req, res) => {
       return;
     }
 
-    // Get user's favorite media details
-    const favoriteDetails = await Promise.all(
-      user.favorites.map(async (favId) => {
-        try {
-          return await getMediaDetails(favId);
-        } catch (err) {
-          console.error(`Error fetching details for favorite ${favId}:`, err);
-          return null;
-        }
-      })
-    );
+    console.log('Fetching favorite media details for IDs:', user.favorites);
+    const favoriteDetails: MediaItem[] = await getMediaDetails(user.favorites);
+    
     let model = await new Promise<string>((res) => {
       if (user.contentSettings.model) {
         res(user.contentSettings.model);
@@ -205,9 +220,9 @@ recommendRouter.get('/:id', async (req, res) => {
       }
     });
 
-    const validFavorites = favoriteDetails.filter((fav): fav is NonNullable<typeof fav> => fav !== null);
+    const validFavorites = favoriteDetails.filter((fav): fav is MediaItem => fav !== null);
     const favoritesContext = JSON.stringify(
-      validFavorites.map((fav) => ({
+      validFavorites.map((fav: MediaItem) => ({
         title: fav.title,
         description: fav.description,
         genres: fav.genres,
