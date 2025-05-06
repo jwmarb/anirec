@@ -11,14 +11,11 @@ services:
     environment:
       - PORT=8080
       - JWT_SECRET=super-duper-hidden-secret! # Add your JWT secret here
-      - DEFAULT_MODEL=google/gemini-2.5-flash
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_API_ENDPOINT=${OPENAI_API_ENDPOINT}
+      - DEFAULT_MODEL=google/gemini-2.5-flash # RECOMMENDED to change. For best experience, gemini 2.5 flash
+      - OPENAI_API_KEY=myapikey # REQUIRED
+      - OPENAI_API_ENDPOINT=endpoint # REQUIRED
       - MONGODB_URI=mongodb://root:example@db:27017/
       - NODE_ENV=production
-    env_file:
-      - frontend/.env
-      - backend/.env
     networks:
       - anirec-network
   mongodb:
