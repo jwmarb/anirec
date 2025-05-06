@@ -17,7 +17,6 @@ services:
       - MONGODB_URI=mongodb://root:example@db:27017/
       - NODE_ENV=production
     env_file:
-      - .env # will contain all your secret stuff
       - frontend/.env
       - backend/.env
     networks:

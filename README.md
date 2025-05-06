@@ -1,5 +1,7 @@
 # Running the application
 
+Alternatively, if you do not want to run it, just go to the live demo website [here](https://anirec.jwmarb.com/)
+
 ## Docker (recommended)
 
 Edit the compose file and edit the environment variables. Just run the following command in the root directory of the project:
