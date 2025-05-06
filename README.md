@@ -14,6 +14,8 @@ This will boot up a server at 0.0.0.0:8080 or localhost:8080.
 
 ## Local
 
+> Note: For grading and easy setup, the .env files are already provided for you
+
 Run two terminals, one for the frontend and one for the backend. You will also need to run MongoDB locally. Fortunately, a docker compose file is provided for you. If you need to run this, then you will need 3 terminals total.
 
 1. First terminal, starting from root directory:
