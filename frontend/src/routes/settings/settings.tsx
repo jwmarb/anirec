@@ -1,19 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
-import {
-  Layout,
-  Typography,
-  Tabs,
-  Form,
-  Input,
-  Button,
-  Select,
-  Upload,
-  Space,
-  Divider,
-  Flex,
-  Radio,
-} from "antd";
+import { useState, useEffect } from 'react';
+import { Layout, Typography, Tabs, Form, Input, Button, Select, Upload, Space, Divider, Flex, Radio } from 'antd';
 import {
   LockOutlined,
   MailOutlined,
@@ -23,19 +10,19 @@ import {
   EyeOutlined,
   RobotOutlined,
   StopOutlined,
-} from "@ant-design/icons";
-import ToggleTheme from "$/components/ToggleTheme";
-import { useNotification } from "$/providers/notification/context";
-import "./settings.css";
-import Header from "$/components/Header";
-import AvatarMenu from "$/components/AvatarMenu";
-import UserAvatar from "$/components/UserAvatar";
-import useUser, { ContentSettings, NsfwContentSetting } from "$/hooks/useUser";
-import { useMessage } from "$/providers/message/context";
-import { BACKEND_URL } from "$/constants";
-import { useAuthStore } from "$/providers/auth/store";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { withProtectedRoute } from "$/providers/auth/hoc";
+} from '@ant-design/icons';
+import ToggleTheme from '$/components/ToggleTheme';
+import { useNotification } from '$/providers/notification/context';
+import './settings.css';
+import Header from '$/components/Header';
+import AvatarMenu from '$/components/AvatarMenu';
+import UserAvatar from '$/components/UserAvatar';
+import useUser, { ContentSettings, NsfwContentSetting } from '$/hooks/useUser';
+import { useMessage } from '$/providers/message/context';
+import { BACKEND_URL } from '$/constants';
+import { useAuthStore } from '$/providers/auth/store';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { withProtectedRoute } from '$/providers/auth/hoc';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -73,14 +60,14 @@ const Settings = withProtectedRoute(() => {
   const [passwordForm] = Form.useForm();
   const [contentForm] = Form.useForm();
   const [hasChanges, setHasChanges] = useState(false);
-  const [activeTab, setActiveTab] = useState("user");
+  const [activeTab, setActiveTab] = useState('user');
 
   // Query for model options
   const { data: llmOptions } = useQuery({
-    queryKey: ["models"],
+    queryKey: ['models'],
     queryFn: async () => {
       const response = await fetch(`${BACKEND_URL}/api/models`, {
-        method: "GET",
+        method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
       const r = (await response.json()) as {
@@ -92,23 +79,19 @@ const Settings = withProtectedRoute(() => {
         value: string | null;
         label: string;
       }[] = r.data.map((x) => ({ value: x.id, label: x.id }));
-      k.unshift({ label: "(Default)", value: null });
+      k.unshift({ label: '(Default)', value: null });
       return k;
     },
   });
 
   // Mutation for content settings
-  const { mutateAsync: updateContentSettings } = useMutation<
-    ContentSettings,
-    Error,
-    ContentSettings
-  >({
-    mutationKey: ["content", token],
+  const { mutateAsync: updateContentSettings } = useMutation<ContentSettings, Error, ContentSettings>({
+    mutationKey: ['content', token],
     mutationFn: async (content) => {
       const response = await fetch(`${BACKEND_URL}/api/user/content`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(content),
@@ -116,17 +99,15 @@ const Settings = withProtectedRoute(() => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.error || "Could not change content settings."
-        );
+        throw new Error(errorData.error || 'Could not change content settings.');
       }
 
       const data = await response.json();
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user", token] });
-      message.success("Content settings saved successfully");
+      queryClient.invalidateQueries({ queryKey: [token] });
+      message.success('Content settings saved successfully');
     },
     onError: (error) => {
       message.error(error.message);
@@ -134,32 +115,28 @@ const Settings = withProtectedRoute(() => {
   });
 
   // Mutation for user settings
-  const { mutateAsync: updateUserSettings } = useMutation<
-    any,
-    Error,
-    UpdateUserDataPayload
-  >({
-    mutationKey: ["user-settings", token],
+  const { mutateAsync: updateUserSettings } = useMutation<any, Error, UpdateUserDataPayload>({
+    mutationKey: ['user-settings', token],
     mutationFn: async (userData) => {
       const response = await fetch(`${BACKEND_URL}/api/user`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
-        throw new Error("Could not update user settings.");
+        throw new Error('Could not update user settings.');
       }
 
       const data = await response.json();
       return data.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user", token] });
-      message.success("User settings saved successfully");
+      queryClient.invalidateQueries({ queryKey: [token] });
+      message.success('User settings saved successfully');
     },
     onError: (error) => {
       message.error(error.message);
@@ -167,17 +144,13 @@ const Settings = withProtectedRoute(() => {
   });
 
   // Mutation for password update
-  const { mutateAsync: updatePassword } = useMutation<
-    any,
-    Error,
-    PasswordFormData
-  >({
-    mutationKey: ["password", token],
+  const { mutateAsync: updatePassword } = useMutation<any, Error, PasswordFormData>({
+    mutationKey: ['password', token],
     mutationFn: async (passwordData) => {
       const response = await fetch(`${BACKEND_URL}/api/user`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -189,19 +162,19 @@ const Settings = withProtectedRoute(() => {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Invalid password");
+        throw new Error(error.message || 'Invalid password');
       }
 
       return await response.json();
     },
     onSuccess: () => {
       passwordForm.resetFields();
-      message.success("Password updated successfully");
+      message.success('Password updated successfully');
     },
     onError: (error) => {
       passwordForm.setFields([
         {
-          name: "currentPassword",
+          name: 'currentPassword',
           errors: [error.message],
         },
       ]);
@@ -210,10 +183,10 @@ const Settings = withProtectedRoute(() => {
 
   // Initial settings values
   const initialSettings: SettingsState = {
-    email: user?.email ?? "",
-    nsfwContentSetting: user?.contentSettings.nsfwContent ?? "hide",
-    llmModel: user?.contentSettings.model ?? "",
-    about: user?.about ?? "",
+    email: user?.email ?? '',
+    nsfwContentSetting: user?.contentSettings.nsfwContent ?? 'hide',
+    llmModel: user?.contentSettings.model ?? '',
+    about: user?.about ?? '',
     interests: [],
   };
 
@@ -225,7 +198,7 @@ const Settings = withProtectedRoute(() => {
         email: user.email,
         llmModel: user.contentSettings?.model,
         nsfwContentSetting: user.contentSettings.nsfwContent,
-        about: user.about || "",
+        about: user.about || '',
         interests: user.interests,
       });
     }
@@ -251,8 +224,7 @@ const Settings = withProtectedRoute(() => {
     const hasUserChanges =
       currentValues.email !== settings.email ||
       currentValues.about !== settings.about ||
-      JSON.stringify(currentValues.interests) !==
-        JSON.stringify(settings.interests);
+      JSON.stringify(currentValues.interests) !== JSON.stringify(settings.interests);
     setHasChanges(hasUserChanges);
   };
 
@@ -260,8 +232,7 @@ const Settings = withProtectedRoute(() => {
   const handleContentFormChange = () => {
     const currentValues = contentForm.getFieldsValue();
     const hasContentChanges =
-      currentValues.nsfwContentSetting !== settings.nsfwContentSetting ||
-      currentValues.llmModel !== settings.llmModel;
+      currentValues.nsfwContentSetting !== settings.nsfwContentSetting || currentValues.llmModel !== settings.llmModel;
 
     setHasChanges(hasContentChanges);
   };
@@ -269,7 +240,7 @@ const Settings = withProtectedRoute(() => {
   // Handle save changes
   const handleSaveChanges = async () => {
     try {
-      if (activeTab === "user") {
+      if (activeTab === 'user') {
         const values = userForm.getFieldsValue();
         await updateUserSettings(values);
         setSettings((prev) => ({
@@ -292,13 +263,13 @@ const Settings = withProtectedRoute(() => {
       }
       setHasChanges(false);
     } catch (error) {
-      console.error("Error saving settings:", error);
+      console.error('Error saving settings:', error);
     }
   };
 
   // Handle discard changes
   const handleDiscardChanges = () => {
-    if (activeTab === "user") {
+    if (activeTab === 'user') {
       userForm.setFieldsValue({
         email: settings.email,
         about: settings.about,
@@ -312,7 +283,7 @@ const Settings = withProtectedRoute(() => {
     }
 
     setHasChanges(false);
-    message.info("Changes discarded");
+    message.info('Changes discarded');
   };
 
   // Handle password update
@@ -322,13 +293,13 @@ const Settings = withProtectedRoute(() => {
 
       // Validate that new password and confirm password match
       if (values.newPassword !== values.confirmPassword) {
-        message.error("New password and confirm password do not match");
+        message.error('New password and confirm password do not match');
         return;
       }
 
       await updatePassword(values);
     } catch (error) {
-      console.log("Validate Failed:", error);
+      console.log('Validate Failed:', error);
     }
   };
 
@@ -336,50 +307,45 @@ const Settings = withProtectedRoute(() => {
   useEffect(() => {
     if (hasChanges) {
       notification.open({
-        message: "Unsaved Changes",
-        description:
-          "You have unsaved changes. Would you like to save them now?",
+        message: 'Unsaved Changes',
+        description: 'You have unsaved changes. Would you like to save them now?',
         duration: 0,
-        placement: "bottom",
-        type: "warning",
-        key: "settings-changes",
+        placement: 'bottom',
+        type: 'warning',
+        key: 'settings-changes',
         btn: (
           <Space>
             <Button
               onClick={() => {
-                notification.destroy("settings-changes");
+                notification.destroy('settings-changes');
                 handleDiscardChanges();
-              }}
-            >
+              }}>
               Discard
             </Button>
             <Button
-              type="primary"
+              type='primary'
               onClick={() => {
-                notification.destroy("settings-changes");
+                notification.destroy('settings-changes');
                 handleSaveChanges();
-              }}
-            >
+              }}>
               Save
             </Button>
           </Space>
         ),
       });
     } else {
-      notification.destroy("settings-changes");
+      notification.destroy('settings-changes');
     }
 
     return () => {
-      notification.destroy("settings-changes");
+      notification.destroy('settings-changes');
     };
   }, [hasChanges]);
 
   const handleTabChange = (key: string) => {
     if (hasChanges) {
       // Prompt user to save changes before switching tabs
-      const confirmed = window.confirm(
-        "You have unsaved changes. Save them before switching tabs?"
-      );
+      const confirmed = window.confirm('You have unsaved changes. Save them before switching tabs?');
       if (confirmed) {
         handleSaveChanges().then(() => setActiveTab(key));
       } else {
@@ -392,100 +358,83 @@ const Settings = withProtectedRoute(() => {
   };
 
   return (
-    <Layout className="layout">
+    <Layout className='layout'>
       <Header backButton>
         <ToggleTheme />
         <AvatarMenu />
       </Header>
-      <main className="settings-content">
-        <div className="settings-container">
+      <main className='settings-content'>
+        <div className='settings-container'>
           <Title level={2}>Settings</Title>
-          <Text type="secondary">Customize your experience</Text>
-          <Tabs
-            defaultActiveKey="user"
-            activeKey={activeTab}
-            onChange={handleTabChange}
-          >
-            <TabPane tab="User Settings" key="user">
-              <Form
-                form={userForm}
-                layout="vertical"
-                onValuesChange={handleUserFormChange}
-              >
-                <Form.Item label="Profile Picture" name="avatar">
-                  <Space
-                    direction="vertical"
-                    align="center"
-                    style={{ width: "100%" }}
-                  >
+          <Text type='secondary'>Customize your experience</Text>
+          <Tabs defaultActiveKey='user' activeKey={activeTab} onChange={handleTabChange}>
+            <TabPane tab='User Settings' key='user'>
+              <Form form={userForm} layout='vertical' onValuesChange={handleUserFormChange}>
+                <Form.Item label='Profile Picture' name='avatar'>
+                  <Space direction='vertical' align='center' style={{ width: '100%' }}>
                     <UserAvatar size={100} />
                     <Upload
-                      method="POST"
+                      method='POST'
                       action={`${BACKEND_URL}/api/user/avatar`}
-                      name="avatar"
+                      name='avatar'
                       headers={{
                         Authorization: `Bearer ${token}`,
                       }}
                       onChange={(info) => {
-                        if (info.file.status === "done") {
+                        if (info.file.status === 'done') {
                           message.success(`Avatar changed`);
                           queryClient.invalidateQueries({
-                            queryKey: ["user", token],
+                            queryKey: [token],
                           });
-                        } else if (info.file.status === "error") {
+                        } else if (info.file.status === 'error') {
                           message.error(info.file.response.error);
                         }
                       }}
-                      showUploadList={false}
-                    >
+                      showUploadList={false}>
                       <Button icon={<UploadOutlined />}>Change Avatar</Button>
                     </Upload>
                   </Space>
                 </Form.Item>
 
                 <Form.Item
-                  label="Email"
-                  name="email"
+                  label='Email'
+                  name='email'
                   rules={[
                     {
                       required: true,
-                      type: "email",
-                      message: "Please enter a valid email",
+                      type: 'email',
+                      message: 'Please enter a valid email',
                     },
-                  ]}
-                >
-                  <Input prefix={<MailOutlined />} placeholder="Email" />
+                  ]}>
+                  <Input prefix={<MailOutlined />} placeholder='Email' />
                 </Form.Item>
                 <Divider />
 
-                <Space direction="vertical" style={{ width: "100%" }}>
+                <Space direction='vertical' style={{ width: '100%' }}>
                   <div>
                     <Typography.Title level={5}>About You</Typography.Title>
-                    <Text type="secondary">
-                      Tell us about yourself to help us recommend anime and
-                      manga you might enjoy
+                    <Text type='secondary'>
+                      Tell us about yourself to help us recommend anime and manga you might enjoy
                     </Text>
                   </div>
                   <Form.Item
-                    label="About Me"
-                    name="about"
-                    help="Share a little about yourself, your preferences, and what you enjoy"
-                  >
+                    label='About Me'
+                    name='about'
+                    help='Share a little about yourself, your preferences, and what you enjoy'>
                     <Input.TextArea
                       rows={4}
                       placeholder="I'm a fan of fantasy series with strong character development..."
                     />
                   </Form.Item>
                   <Form.Item
-                    label="Interests"
-                    name="interests"
-                    help="Add tags that represent your interests (action, romance, sci-fi, etc.)"
-                  >
+                    label='Interests'
+                    name='interests'
+                    help='Add tags that represent your interests (action, romance, sci-fi, etc.)'>
                     <Select
-                      mode="tags"
-                      style={{ width: "100%" }}
-                      placeholder="Add your interests"
-                      tokenSeparators={[","]}
+                      mode='tags'
+                      style={{ width: '100%' }}
+                      placeholder='Add your interests'
+                      tokenSeparators={[',']}
                     />
                   </Form.Item>
                 </Space>
@@ -493,84 +442,65 @@ const Settings = withProtectedRoute(() => {
 
               <Divider />
               {/* Separate password form to avoid nesting forms */}
-              <div className="password-section">
+              <div className='password-section'>
                 <Typography.Title level={5}>Change Password</Typography.Title>
-                <Form form={passwordForm} layout="vertical">
-                  <Space direction="vertical" style={{ width: "100%" }}>
+                <Form form={passwordForm} layout='vertical'>
+                  <Space direction='vertical' style={{ width: '100%' }}>
                     <Form.Item
-                      name="currentPassword"
+                      name='currentPassword'
                       rules={[
                         {
                           required: true,
-                          message: "Please enter your current password",
+                          message: 'Please enter your current password',
                         },
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="Current Password"
-                      />
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='Current Password' />
                     </Form.Item>
 
                     <Form.Item
-                      name="newPassword"
+                      name='newPassword'
                       rules={[
                         {
                           required: true,
-                          message: "Please enter your new password",
+                          message: 'Please enter your new password',
                         },
                         {
                           min: 6,
-                          message: "Password must be at least 6 characters",
+                          message: 'Password must be at least 6 characters',
                         },
                         {
                           pattern: /[A-Z]/,
-                          message:
-                            "Password must contain at least one uppercase letter",
+                          message: 'Password must contain at least one uppercase letter',
                         },
                         {
                           pattern: /[^a-zA-Z0-9]/,
-                          message:
-                            "Password must contain at least one special character",
+                          message: 'Password must contain at least one special character',
                         },
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="New Password"
-                      />
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='New Password' />
                     </Form.Item>
 
                     <Form.Item
-                      name="confirmPassword"
+                      name='confirmPassword'
                       rules={[
                         {
                           required: true,
-                          message: "Please confirm your new password",
+                          message: 'Please confirm your new password',
                         },
                         ({ getFieldValue }) => ({
                           validator(_, value) {
-                            if (
-                              !value ||
-                              getFieldValue("newPassword") === value
-                            ) {
+                            if (!value || getFieldValue('newPassword') === value) {
                               return Promise.resolve();
                             }
-                            return Promise.reject(
-                              new Error("The two passwords do not match")
-                            );
+                            return Promise.reject(new Error('The two passwords do not match'));
                           },
                         }),
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="Confirm New Password"
-                      />
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder='Confirm New Password' />
                     </Form.Item>
 
-                    <Flex justify="flex-end">
-                      <Button type="default" onClick={handleUpdatePassword}>
+                    <Flex justify='flex-end'>
+                      <Button type='default' onClick={handleUpdatePassword}>
                         Update Password
                       </Button>
                     </Flex>
@@ -579,32 +509,27 @@ const Settings = withProtectedRoute(() => {
               </div>
             </TabPane>
 
-            <TabPane tab="Content Settings" key="content">
-              <Form
-                form={contentForm}
-                layout="vertical"
-                onValuesChange={handleContentFormChange}
-              >
+            <TabPane tab='Content Settings' key='content'>
+              <Form form={contentForm} layout='vertical' onValuesChange={handleContentFormChange}>
                 <Flex vertical>
                   <Form.Item
-                    label="NSFW Content"
-                    help="Control how NSFW (18+) content is displayed throughout the application"
-                    name="nsfwContentSetting"
-                  >
-                    <Radio.Group buttonStyle="solid">
-                      <Radio.Button value="show">
+                    label='NSFW Content'
+                    help='Control how NSFW (18+) content is displayed throughout the application'
+                    name='nsfwContentSetting'>
+                    <Radio.Group buttonStyle='solid'>
+                      <Radio.Button value='show'>
                         <Space>
                           Show
                           <EyeOutlined />
                         </Space>
                       </Radio.Button>
-                      <Radio.Button value="blur">
+                      <Radio.Button value='blur'>
                         <Space>
                           Blur
                           <EyeInvisibleOutlined />
                         </Space>
                       </Radio.Button>
-                      <Radio.Button value="hide">
+                      <Radio.Button value='hide'>
                         <Space>
                           Hide
                           <StopOutlined />
@@ -616,14 +541,13 @@ const Settings = withProtectedRoute(() => {
                   <Divider />
 
                   <Form.Item
-                    label="AI Recommendation Engine"
-                    name="llmModel"
-                    help="Select which AI model to use for content recommendations and responses"
-                  >
+                    label='AI Recommendation Engine'
+                    name='llmModel'
+                    help='Select which AI model to use for content recommendations and responses'>
                     <Select
-                      style={{ width: "100%" }}
+                      style={{ width: '100%' }}
                       options={llmOptions}
-                      placeholder="Select AI model"
+                      placeholder='Select AI model'
                       loading={!llmOptions}
                       disabled={!llmOptions || llmOptions.length === 0}
                       prefix={<RobotOutlined />}
@@ -637,18 +561,13 @@ const Settings = withProtectedRoute(() => {
           {hasChanges && (
             <div
               style={{
-                marginTop: "20px",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "10px",
-              }}
-            >
+                marginTop: '20px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px',
+              }}>
               <Button onClick={handleDiscardChanges}>Cancel</Button>
-              <Button
-                type="primary"
-                icon={<SaveOutlined />}
-                onClick={handleSaveChanges}
-              >
+              <Button type='primary' icon={<SaveOutlined />} onClick={handleSaveChanges}>
                 Save Changes
               </Button>
             </div>

@@ -31,7 +31,7 @@
   right: 0;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .header,
   .header-with-back {
     z-index: 2;

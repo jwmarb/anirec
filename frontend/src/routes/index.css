@@ -11,7 +11,7 @@
 }
 
 .search-container {
-  max-width: 800px;
+  max-width: 960px;
   height: 300px;
   display: flex;
   flex-direction: column;

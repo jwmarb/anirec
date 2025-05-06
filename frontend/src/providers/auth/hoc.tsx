@@ -11,7 +11,7 @@ export function withProtectedRoute<T extends JSX.IntrinsicAttributes>(WrappedCom
     const token = useAuthStore((s) => s.token);
 
     const { data, isLoading } = useQuery<User | null>({
-      queryKey: ['user', token],
+      queryKey: [token],
       queryFn: async () => {
         try {
           if (!token) return null;

@@ -1,37 +1,24 @@
-import {
-  Input,
-  Button,
-  Typography,
-  Layout,
-  Space,
-  Spin,
-  List,
-  theme,
-} from "antd";
-import { SendOutlined } from "@ant-design/icons";
-import ToggleTheme from "$/components/ToggleTheme";
-import Header from "$/components/Header";
-import AvatarMenu from "$/components/AvatarMenu";
-import { useNavigate, useSearchParams } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import "./search.css";
-import useWindowWidth from "$/hooks/useWindowWidth";
-import React from "react";
-import { BACKEND_URL } from "$/constants";
-import { useNotification } from "$/providers/notification/context";
-import { useAuthStore } from "$/providers/auth/store";
-import useUser from "$/hooks/useUser";
-import { Media } from "$/types";
-import SearchItem from "$/components/SearchItem";
+import { Input, Button, Typography, Layout, Space, Spin, List, theme } from 'antd';
+import { SendOutlined } from '@ant-design/icons';
+import ToggleTheme from '$/components/ToggleTheme';
+import Header from '$/components/Header';
+import AvatarMenu from '$/components/AvatarMenu';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import './search.css';
+import useWindowWidth from '$/hooks/useWindowWidth';
+import React from 'react';
+import { BACKEND_URL } from '$/constants';
+import { useNotification } from '$/providers/notification/context';
+import { useAuthStore } from '$/providers/auth/store';
+import useUser from '$/hooks/useUser';
+import { Media } from '$/types';
+import SearchItem from '$/components/SearchItem';
 
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = React.useState<string>(
-    searchParams.get("q") || ""
-  );
-  const [submittedQuery, setSubmittedQuery] = React.useState<string>(
-    searchParams.get("q") || ""
-  );
+  const [searchQuery, setSearchQuery] = React.useState<string>(searchParams.get('q') || '');
+  const [submittedQuery, setSubmittedQuery] = React.useState<string>(searchParams.get('q') || '');
   const queryClient = useQueryClient();
   const notification = useNotification();
   const windowWidth = useWindowWidth();
@@ -41,15 +28,13 @@ export default function Search() {
   const [user, isLoadingUser] = useUser();
 
   // Keep track of unblurred items
-  const [unblurredItems, setUnblurredItems] = React.useState<Set<number>>(
-    new Set()
-  );
+  const [unblurredItems, setUnblurredItems] = React.useState<Set<number>>(new Set());
 
   const searchAnime = async (query: string): Promise<Media[]> => {
     return fetch(`${BACKEND_URL}/api/search`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({ query }),
@@ -57,45 +42,37 @@ export default function Search() {
       .then((r) => r.json())
       .then((r) => r.data);
   };
-  const { mutateAsync: addToFavorites } = useMutation<
-    void,
-    Error,
-    { mediaId: number }
-  >({
+  const { mutateAsync: addToFavorites } = useMutation<void, Error, { mediaId: number }>({
     mutationFn: async ({ mediaId }) => {
       await fetch(`${BACKEND_URL}/api/user/favorites`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ mediaId }),
       });
-      queryClient.invalidateQueries({ queryKey: ["user", "favorites"] });
+      queryClient.invalidateQueries({ queryKey: [authToken, 'favorites'] });
     },
   });
-  const { mutateAsync: deleteFromFavorites } = useMutation<
-    void,
-    Error,
-    { mediaId: number }
-  >({
+  const { mutateAsync: deleteFromFavorites } = useMutation<void, Error, { mediaId: number }>({
     mutationFn: async ({ mediaId }) => {
       await fetch(`${BACKEND_URL}/api/user/favorites`, {
-        method: "DELETE",
+        method: 'DELETE',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({ mediaId }),
       });
-      queryClient.invalidateQueries({ queryKey: ["user", "favorites"] });
+      queryClient.invalidateQueries({ queryKey: [authToken, 'favorites'] });
     },
   });
   const { data: favoriteIds } = useQuery({
-    queryKey: ["user", "favorites"],
+    queryKey: [authToken, 'favorites'],
     queryFn: async () => {
       const response = await fetch(`${BACKEND_URL}/api/user/favorites`, {
-        method: "GET",
+        method: 'GET',
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const { data } = await response.json();
@@ -110,23 +87,23 @@ export default function Search() {
         if (isFavorite) {
           await deleteFromFavorites({ mediaId });
           notification.success({
-            message: "Removed from favorites",
-            placement: "bottomRight",
+            message: 'Removed from favorites',
+            placement: 'bottomRight',
             duration: 2,
           });
         } else {
           await addToFavorites({ mediaId });
           notification.success({
-            message: "Added to favorites",
-            placement: "bottomRight",
+            message: 'Added to favorites',
+            placement: 'bottomRight',
             duration: 2,
           });
         }
       } catch {
         notification.error({
-          message: "Error updating favorites",
-          description: "Please try again later",
-          placement: "bottomRight",
+          message: 'Error updating favorites',
+          description: 'Please try again later',
+          placement: 'bottomRight',
         });
       }
     },
@@ -156,12 +133,12 @@ export default function Search() {
     isError,
     isSuccess,
   } = useQuery({
-    queryKey: ["animeSearch", submittedQuery],
+    queryKey: ['animeSearch', submittedQuery],
     queryFn: () => searchAnime(submittedQuery),
   });
 
   const handleBack = () => {
-    navigate("/");
+    navigate('/');
   };
 
   const handleSearch = () => {
@@ -171,7 +148,7 @@ export default function Search() {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       handleSearch();
     }
   };
@@ -192,7 +169,7 @@ export default function Search() {
     const nsfwSetting = user.contentSettings.nsfwContent;
 
     // Handle based on user preference
-    if (nsfwSetting === "hide") {
+    if (nsfwSetting === 'hide') {
       return searchResults.filter((item) => !item.isAdult);
     }
 
@@ -204,13 +181,13 @@ export default function Search() {
     (item: Media) => {
       const isFavorite = favoriteIds?.includes(item.id) || false;
       const isUnblurred = unblurredItems.has(item.id);
-      const nsfwSetting = user?.contentSettings?.nsfwContent || "hide";
+      const nsfwSetting = user?.contentSettings?.nsfwContent || 'hide';
 
       return (
         <SearchItem
           item={item}
           isFavorite={isFavorite}
-          nsfwSetting={nsfwSetting as "show" | "blur" | "hide"}
+          nsfwSetting={nsfwSetting as 'show' | 'blur' | 'hide'}
           isUnblurred={isUnblurred}
           onToggleBlur={toggleBlur}
           onToggleFavorite={handleToggleFavorite}
@@ -218,109 +195,79 @@ export default function Search() {
         />
       );
     },
-    [
-      unblurredItems,
-      favoriteIds,
-      user?.contentSettings.nsfwContent,
-      toggleBlur,
-      handleToggleFavorite,
-      authToken,
-    ]
+    [unblurredItems, favoriteIds, user?.contentSettings.nsfwContent, toggleBlur, handleToggleFavorite, authToken]
   );
 
   return (
-    <Layout className="layout">
+    <Layout className='layout'>
       <Header backButton onBack={handleBack}>
         <ToggleTheme />
         <AvatarMenu />
       </Header>
-      <main className="search-content">
+      <main className='search-content'>
         <Space
-          direction="vertical"
-          style={{ width: "100%", backgroundColor: token.colorBgLayout }}
-          className={
-            isSuccess
-              ? "search-input-top no-search-input-top-noanim"
-              : "search-input-top"
-          }
-        >
+          direction='vertical'
+          style={{ width: '100%', backgroundColor: token.colorBgLayout }}
+          className={isSuccess ? 'search-input-top no-search-input-top-noanim' : 'search-input-top'}>
           {windowWidth > 1024 && (
             <>
-              <Typography.Title
-                level={1}
-                className="search-title search-fade-away"
-              >
+              <Typography.Title level={1} className='search-title search-fade-away'>
                 Discover Your Next Anime & Manga Adventure
               </Typography.Title>
-              <Typography.Text className="search-subtitle search-fade-away">
+              <Typography.Text className='search-subtitle search-fade-away'>
                 Find personalized recommendations based on your interests
               </Typography.Text>
             </>
           )}
-          <div className="search-input-container">
+          <div className='search-input-container'>
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Describe what you're looking for, e.g., 'Action anime with strong female leads'"
-              size="large"
-              className="search-input"
+              size='large'
+              className='search-input'
               suffix={
                 <Button
-                  type="primary"
-                  shape="circle"
+                  type='primary'
+                  shape='circle'
                   icon={<SendOutlined />}
                   onClick={handleSearch}
-                  className="search-button"
+                  className='search-button'
                 />
               }
             />
           </div>
         </Space>
 
-        {isLoading && <Spin size="large" className="search-spinner" />}
+        {isLoading && <Spin size='large' className='search-spinner' />}
 
         {isError && (
-          <div className="search-error">
-            <Typography.Text type="danger">
-              An error occurred while searching. Please try again.
-            </Typography.Text>
+          <div className='search-error'>
+            <Typography.Text type='danger'>An error occurred while searching. Please try again.</Typography.Text>
           </div>
         )}
 
         {!isLoading && filteredResults && filteredResults.length > 0 && (
-          <div className="search-results">
+          <div className='search-results'>
             <Typography.Title level={3}>Search Results</Typography.Title>
-            <List
-              itemLayout="vertical"
-              dataSource={filteredResults}
-              renderItem={renderItem}
-            />
+            <List itemLayout='vertical' dataSource={filteredResults} renderItem={renderItem} />
           </div>
         )}
 
-        {!isLoading &&
-          searchResults &&
-          searchResults.length > 0 &&
-          filteredResults.length === 0 && (
-            <div className="no-results">
-              <Typography.Text>
-                Your content settings are hiding all results. You can adjust
-                your NSFW content settings in your profile.
-              </Typography.Text>
-            </div>
-          )}
+        {!isLoading && searchResults && searchResults.length > 0 && filteredResults.length === 0 && (
+          <div className='no-results'>
+            <Typography.Text>
+              Your content settings are hiding all results. You can adjust your NSFW content settings in your profile.
+            </Typography.Text>
+          </div>
+        )}
 
-        {!isLoading &&
-          searchResults &&
-          searchResults.length === 0 &&
-          submittedQuery && (
-            <div className="no-results">
-              <Typography.Text>
-                No results found for "{submittedQuery}". Try different keywords.
-              </Typography.Text>
-            </div>
-          )}
+        {!isLoading && searchResults && searchResults.length === 0 && submittedQuery && (
+          <div className='no-results'>
+            <Typography.Text>No results found for "{submittedQuery}". Try different keywords.</Typography.Text>
+          </div>
+        )}
       </main>
     </Layout>
   );

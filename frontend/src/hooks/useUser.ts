@@ -25,7 +25,7 @@ export default function useUser() {
   const token = useAuthStore((s) => s.token);
 
   const { data, isLoading } = useQuery<User | null>({
-    queryKey: ['user', token],
+    queryKey: [token],
     queryFn: async () => {
       try {
         if (!token) return null;

@@ -17,7 +17,11 @@
     "baseUrl": ".",
     "paths": {
       "$/*": ["src/*"]
-    }
+    },
+		"outDir": "bin",
+		"rootDir": "./src",         /* Specify the root directory of input files */
+		"removeComments": true,     /* Don't emit comments to output */
+		"sourceMap": true           /* Generate corresponding .map files */
   }
 }
 

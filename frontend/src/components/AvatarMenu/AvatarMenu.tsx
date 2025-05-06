@@ -24,9 +24,8 @@ export default function AvatarMenu() {
     navigate('/settings');
   };
 
-  const handleSaved = () => {
-    console.log('Saved items clicked');
-    // Implement navigation to saved items
+  const handleFavorites = () => {
+    navigate('/favorites');
   };
 
   const handleLoginClick = () => {
@@ -45,7 +44,7 @@ export default function AvatarMenu() {
           key: '2',
           icon: <HeartOutlined />,
           label: 'Favorites',
-          onClick: handleSaved,
+          onClick: handleFavorites,
         },
         {
           type: 'divider',

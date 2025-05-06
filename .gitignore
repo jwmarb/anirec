@@ -8,7 +8,7 @@ node_modules/
 
 # Build outputs
 dist/
-
+bin/
 
 # Debug logs
 npm-debug.log*
