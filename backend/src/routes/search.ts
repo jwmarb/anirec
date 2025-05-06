@@ -457,7 +457,7 @@ searchRouter.post('/', async (req: express.Request, res: express.Response): Prom
           return {
             key: argName,
             type,
-            value: JSON.parse(parsed),
+            value: JSON.parse(parsed.toLowerCase()),
           };
         } catch {
           return {
